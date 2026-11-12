@@ -18,6 +18,7 @@ public struct PairWireMessage: Codable, Sendable {
     public var petSnapshot: IslandPetSnapshot
     public var message: String?
     public var isExplicitUpdate: Bool
+    public var notifyMessage: Bool?
     public var rareInteraction: RarePetInteraction?
     public var sentAt: TimeInterval
 
@@ -28,6 +29,7 @@ public struct PairWireMessage: Codable, Sendable {
         petSnapshot: IslandPetSnapshot,
         message: String? = nil,
         isExplicitUpdate: Bool = false,
+        notifyMessage: Bool? = nil,
         rareInteraction: RarePetInteraction? = nil,
         sentAt: TimeInterval = Date().timeIntervalSince1970
     ) {
@@ -37,6 +39,7 @@ public struct PairWireMessage: Codable, Sendable {
         self.petSnapshot = petSnapshot
         self.message = message
         self.isExplicitUpdate = isExplicitUpdate
+        self.notifyMessage = notifyMessage
         self.rareInteraction = rareInteraction
         self.sentAt = sentAt
     }
@@ -239,28 +242,19 @@ public final class PairSyncService: ObservableObject {
         }
     }
 
-    // MARK: - Setting My Pet's Action (Updates My Phone + Partner's Phone)
+    // MARK: - Setting My Pet's Action vs Sending Partner Messages
 
-    public func setMyPetAction(_ action: PetAction, message: String? = nil) async {
+    /// Updates ONLY your pet's animation on both phones' Dynamic Islands silently (no notification).
+    public func setMyPetAction(_ action: PetAction) async {
         myAction = action
         storage.myAction = action
-
-        if let message {
-            let cleaned = Self.cleanOptionalMessage(message)
-            myMessage = cleaned
-            storage.myMessage = cleaned
-        }
 
         await pushStateToActiveLiveActivities()
 
         if storage.isPaired {
-            let ok = await broadcastMyPetState(isExplicitUpdate: true)
+            let ok = await broadcastMyPetState(isExplicitUpdate: true, notifyMessage: false)
             if ok {
-                if let myMessage, !myMessage.isEmpty {
-                    showToast("\(myPetProfile.name) → \(action.title) \(action.emoji) • Sent to partner!")
-                } else {
-                    showToast("\(myPetProfile.name) is now \(action.title) \(action.emoji) on both phones!")
-                }
+                showToast("\(myPetProfile.name) is now \(action.title) \(action.emoji) on both phones!")
                 // Small chance of triggering a spontaneous 2-dog interaction shortly after an update
                 await maybeRollRareInteraction(probability: 0.14)
             } else {
@@ -271,18 +265,44 @@ public final class PairSyncService: ObservableObject {
         }
     }
 
+    /// Sends a message that pushes a notification on the connected partner's iPhone.
+    public func sendMyMessage(_ rawMessage: String, optionalAction: PetAction? = nil) async {
+        guard let cleaned = Self.cleanOptionalMessage(rawMessage) else { return }
+
+        if let optionalAction {
+            myAction = optionalAction
+            storage.myAction = optionalAction
+        }
+        myMessage = cleaned
+        storage.myMessage = cleaned
+
+        await pushStateToActiveLiveActivities()
+
+        if storage.isPaired {
+            let ok = await broadcastMyPetState(isExplicitUpdate: true, notifyMessage: true)
+            if ok {
+                showToast("💬 Sent “\(cleaned)” to partner!")
+                await maybeRollRareInteraction(probability: 0.14)
+            } else {
+                showToast("Saved locally (couldn't reach partner relay)")
+            }
+        } else {
+            showToast("Updated status note: “\(cleaned)”")
+        }
+    }
+
     public func clearMyMessage() async {
         myMessage = nil
         storage.myMessage = nil
         await pushStateToActiveLiveActivities()
         if storage.isPaired {
-            _ = await broadcastMyPetState(isExplicitUpdate: false)
+            _ = await broadcastMyPetState(isExplicitUpdate: false, notifyMessage: false)
         }
     }
 
     public func handleDynamicIslandActionTap(_ action: PetAction) async {
         reloadFromStorage()
-        await setMyPetAction(action, message: nil)
+        await setMyPetAction(action)
         if storage.isPaired {
             await pollLatestMessages()
         }
@@ -457,7 +477,7 @@ public final class PairSyncService: ObservableObject {
     // MARK: - Broadcasting & Catch-up Polling
 
     @discardableResult
-    public func broadcastMyPetState(isExplicitUpdate: Bool) async -> Bool {
+    public func broadcastMyPetState(isExplicitUpdate: Bool, notifyMessage: Bool = false) async -> Bool {
         guard storage.isPaired else { return false }
         let wire = PairWireMessage(
             kind: .petState,
@@ -465,7 +485,8 @@ public final class PairSyncService: ObservableObject {
             senderOwnerName: storage.myName,
             petSnapshot: myPetSnapshot,
             message: myMessage,
-            isExplicitUpdate: isExplicitUpdate
+            isExplicitUpdate: isExplicitUpdate,
+            notifyMessage: notifyMessage
         )
         return await postWireMessage(wire)
     }
@@ -581,7 +602,7 @@ public final class PairSyncService: ObservableObject {
             return ProcessOutcome(didMutate: false, alertBannerText: nil)
         }
 
-        // Handle incoming Rare Two-Dog Interaction
+        // Handle incoming Rare Two-Dog Interaction (animates on Dynamic Island silently without push notifications)
         if wire.kind == .rareInteraction, let incomingRare = wire.rareInteraction, incomingRare.isActive(at: now) {
             let sanitizedPartner = Self.sanitizeIncomingSnapshot(wire.petSnapshot)
             partnerPet = sanitizedPartner
@@ -589,11 +610,6 @@ public final class PairSyncService: ObservableObject {
 
             if activeRareInteraction?.id != incomingRare.id {
                 await applyRareInteraction(incomingRare, broadcastToPartner: false)
-                NotificationManager.shared.postRareInteractionNotification(
-                    myPetName: myPetProfile.name,
-                    partnerPetName: sanitizedPartner.name,
-                    interaction: incomingRare
-                )
                 return ProcessOutcome(didMutate: true, alertBannerText: nil)
             }
             return ProcessOutcome(didMutate: false, alertBannerText: nil)
@@ -623,21 +639,21 @@ public final class PairSyncService: ObservableObject {
         refreshConnectionBadge(connected: true)
 
         var alertText: String?
-        if isStrictlyNewer && wire.isExplicitUpdate && wire.sentAt > storage.lastNotifiedRemoteSentAt {
+        if isStrictlyNewer,
+           wire.notifyMessage == true,
+           let safeMessage, !safeMessage.isEmpty,
+           wire.sentAt > storage.lastNotifiedRemoteSentAt {
             storage.lastNotifiedRemoteSentAt = wire.sentAt
-            NotificationManager.shared.postPartnerUpdateNotification(
+            NotificationManager.shared.postPartnerMessageNotification(
                 partnerPetName: safeSnapshot.name,
                 partnerOwnerName: safeOwner,
-                action: safeSnapshot.action,
                 partnerMessage: safeMessage,
                 dedupeKey: String(format: "%.3f", wire.sentAt)
             )
-            if let safeMessage, !safeMessage.isEmpty {
-                alertText = "\(safeSnapshot.name): “\(safeMessage)”"
-                showToast("💬 \(safeSnapshot.name): “\(safeMessage)”")
-            } else {
-                showToast("\(safeSnapshot.name) \(safeSnapshot.action.statusPhrase) \(safeSnapshot.action.emoji)")
-            }
+            alertText = "\(safeSnapshot.name): “\(safeMessage)”"
+            showToast("💬 \(safeSnapshot.name): “\(safeMessage)”")
+        } else if isStrictlyNewer && wire.isExplicitUpdate {
+            showToast("\(safeSnapshot.name) \(safeSnapshot.action.statusPhrase) \(safeSnapshot.action.emoji)")
         }
 
         return ProcessOutcome(didMutate: isStrictlyNewer, alertBannerText: alertText)

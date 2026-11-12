@@ -380,9 +380,10 @@
       </div>
 
       <div class="card">
-        <div class="section-label">3. Set My Pet's Action & Partner Notification Message</div>
+        <div class="section-label">3. Send Partner Message (Pushes Notification) & Silent Pet Actions</div>
         <div class="pair-row">
-          <input id="noteInput" type="text" placeholder="Message for partner's notification (e.g. Goodnight! 🌙)" />
+          <input id="noteInput" type="text" placeholder="Message for partner's notification (e.g. Goodnight! 🌙)" onkeydown="if(event.key==='Enter')sendPartnerNote()" />
+          <button class="btn" onclick="sendPartnerNote()">Send</button>
         </div>
         <div id="actionsGrid" class="actions-grid"></div>
       </div>
@@ -428,6 +429,7 @@
     let mySpriteKind = "alfie";
     let myPetName = "Alfie";
     let myAction = "idle";
+    let mySentNote = null;
     let pairCode = "";
     let partnerPet = null;
     let partnerMessage = null;
@@ -517,7 +519,17 @@
       myAction = actionKey;
       updateUI();
       renderActionButtons();
-      broadcastMyState(true);
+      broadcastMyState(true, false);
+    }
+
+    function sendPartnerNote() {
+      const input = document.getElementById("noteInput");
+      const clean = sanitizeText(input.value, 72);
+      if (!clean) return;
+      mySentNote = clean;
+      input.value = "";
+      updateUI();
+      broadcastMyState(true, true);
     }
 
     function updateUI() {
@@ -636,10 +648,9 @@
       broadcastMyState(false);
     }
 
-    async function broadcastMyState(isExplicit) {
+    async function broadcastMyState(isExplicit, notifyMessage = false) {
       if (!pairCode) return;
       const topic = await deriveTopic(pairCode);
-      const note = sanitizeText(document.getElementById("noteInput").value, 72) || null;
       const builtIn = (mySpriteKind === "alfie" || mySpriteKind === "teddy") ? mySpriteKind : "alfie";
       const payload = {
         kind: "pet_state",
@@ -652,8 +663,9 @@
           colorPreset: builtIn === "teddy" ? "periwinkleBlue" : "sunsetOrange",
           action: myAction
         },
-        message: note,
+        message: mySentNote,
         isExplicitUpdate: !!isExplicit,
+        notifyMessage: !!(notifyMessage && mySentNote),
         sentAt: Date.now() / 1000
       };
       const body = await encryptWire(payload, pairCode);

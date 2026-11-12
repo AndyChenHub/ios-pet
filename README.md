@@ -24,11 +24,11 @@
 
 ## 📦 Building & Installing on iPhone
 
-### Option A: From Windows (GitHub Actions `.ipa` + Sideloading)
-1. Push this repository to GitHub (`main` branch).
-2. Open the **Actions** tab on GitHub → **Build IslandPup iOS IPA** (`.github/workflows/build-ipa.yml`).
-3. Download the **`IslandPup-iOS-IPA`** artifact (`IslandPup.ipa`).
-4. Install `IslandPup.ipa` onto your iPhone(s) using **SideStore**, **AltStore**, or **Sideloadly** with your Apple ID.
+### Option A: From Windows (Versioned GitHub Releases & Actions `.ipa` + Sideloading)
+1. Every push to `main` automatically builds a versioned `.ipa` (`IslandPup-v<VERSION>-b<run_number>.ipa` + `.sha256` checksum), stamps matching `CFBundleShortVersionString`, `CFBundleVersion`, and commit SHA into both `IslandPup.app` and `IslandPupWidgetExtension.appex`, and publishes a **GitHub Release** (plus a 90-day Actions artifact).
+   - To bump the semantic version (e.g. `1.1.0` → `1.2.0`), update the root `VERSION` file (or pass `version_override` when manually triggering **Build IslandPup iOS IPA** via `workflow_dispatch`).
+2. Open the repository's **Releases** page (or **Actions** → **Build IslandPup iOS IPA**) and download the desired **`IslandPup-vX.Y.Z-bN.ipa`**.
+3. Install the `.ipa` onto your iPhone(s) using **SideStore**, **AltStore**, or **Sideloadly** with your Apple ID.
    - *Important for Sideloadly / AltStore*: Leave **"Remove App Extensions (PlugIns)" UNCHECKED** (and click *Keep App Extensions* in AltStore/SideStore) so `IslandPupWidgetExtension` is installed—otherwise iOS cannot render the dogs inside the Dynamic Island!
    - *Tip*: Once IslandPup shows your pet is live, **swipe up to the Home Screen** (iOS hides an app's own Live Activity while that app itself is open in the foreground).
 

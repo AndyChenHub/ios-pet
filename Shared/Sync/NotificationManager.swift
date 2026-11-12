@@ -1,8 +1,8 @@
 import Foundation
 import UserNotifications
 
-/// Delivers local iOS banner & Notification Center alerts showing the partner's message
-/// whenever the connected partner updates their pet with a message.
+/// Delivers local iOS banner & Notification Center alerts strictly for incoming partner messages
+/// (never for silent pet action changes, pet switches, or rare animations).
 public final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
     public static let shared = NotificationManager()
 
@@ -16,53 +16,27 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
         center.requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
     }
 
-    public func postPartnerUpdateNotification(
+    public func postPartnerMessageNotification(
         partnerPetName: String,
         partnerOwnerName: String?,
-        action: PetAction,
-        partnerMessage: String?,
+        partnerMessage: String,
         dedupeKey: String
     ) {
+        let trimmed = partnerMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
         let content = UNMutableNotificationContent()
         if let owner = partnerOwnerName, !owner.isEmpty {
-            content.title = "🐾 \(partnerPetName) (\(owner)) \(action.emoji)"
+            content.title = "🐾 \(partnerPetName) (\(owner))"
         } else {
-            content.title = "🐾 \(partnerPetName) \(action.emoji)"
+            content.title = "🐾 \(partnerPetName)"
         }
-
-        if let msg = partnerMessage, !msg.isEmpty {
-            content.subtitle = "\(partnerPetName) \(action.statusPhrase)"
-            content.body = "“\(msg)”"
-        } else {
-            content.body = "\(partnerPetName) \(action.statusPhrase)"
-        }
+        content.body = "“\(trimmed)”"
         content.sound = .default
-        content.threadIdentifier = "islandpup-partner-updates"
+        content.threadIdentifier = "islandpup-partner-messages"
 
         let request = UNNotificationRequest(
             identifier: "islandpup-msg-\(dedupeKey)",
-            content: content,
-            trigger: nil
-        )
-        UNUserNotificationCenter.current().add(request)
-    }
-
-    public func postRareInteractionNotification(
-        myPetName: String,
-        partnerPetName: String,
-        interaction: RarePetInteraction
-    ) {
-        let content = UNMutableNotificationContent()
-        content.title = "✨ Rare Puppy Moment! \(interaction.kind.badgeEmoji)"
-        content.body = interaction.kind.descriptionText(
-            myPetName: myPetName,
-            partnerPetName: partnerPetName
-        )
-        content.sound = .default
-        content.threadIdentifier = "islandpup-rare-interactions"
-
-        let request = UNNotificationRequest(
-            identifier: "islandpup-rare-\(interaction.id)",
             content: content,
             trigger: nil
         )

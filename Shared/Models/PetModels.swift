@@ -396,3 +396,29 @@ public enum PetAction: String, Codable, CaseIterable, Identifiable, Hashable, Se
         .sleeping, .waving, .jumping, .working
     ]
 }
+
+/// Exposes the stamped IPA semantic version, CI build number, and short commit SHA inside the app UI.
+public enum AppBuildInfo {
+    public static var version: String {
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "1.1.0"
+    }
+
+    public static var build: String {
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String) ?? "1"
+    }
+
+    public static var gitSHA: String {
+        let raw = (Bundle.main.object(forInfoDictionaryKey: "IslandPupGitSHA") as? String) ?? ""
+        if raw.isEmpty || raw == "local" || raw.contains("$(") {
+            return ""
+        }
+        return raw
+    }
+
+    public static var displayLabel: String {
+        if gitSHA.isEmpty {
+            return "IslandPup v\(version) • Build \(build)"
+        }
+        return "IslandPup v\(version) • Build \(build) (\(gitSHA))"
+    }
+}

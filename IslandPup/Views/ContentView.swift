@@ -49,6 +49,11 @@ struct ContentView: View {
                         myPetRosterSection
                         partnerStatusAndMessageCard
                         myPetActionDeckSection
+
+                        Text(AppBuildInfo.displayLabel)
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.36))
+                            .padding(.top, 4)
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
@@ -100,7 +105,6 @@ struct ContentView: View {
                 AddPetSheet(mode: sheetMode, syncService: syncService)
             }
             .onAppear {
-                messageInput = syncService.myMessage ?? ""
                 islandController.refreshActiveStatus()
                 if !didAutoLaunchIsland {
                     didAutoLaunchIsland = true
@@ -494,25 +498,19 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - My Pet's Action & Message Deck (Changes My Phone + Partner's Phone)
+    // MARK: - My Pet's Message & Action Deck
 
     private var myPetActionDeckSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("SET \(syncService.myPetProfile.name.uppercased())'S ACTION & MESSAGE")
+        let canSendMessage = !messageInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
+        return VStack(alignment: .leading, spacing: 16) {
+            // 1. Send Message Section (Pushes Notification to Partner)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(syncService.pairCode.isEmpty ? "STATUS NOTE" : "SEND PARTNER MESSAGE (PUSHES NOTIFICATION)")
                     .font(.system(size: 11, weight: .heavy, design: .rounded))
                     .tracking(0.7)
                     .foregroundStyle(.white.opacity(0.55))
 
-                Text(syncService.pairCode.isEmpty
-                     ? "Updates \(syncService.myPetProfile.name) on your Dynamic Island."
-                     : "Updates \(syncService.myPetProfile.name) on BOTH your Dynamic Island and your partner's phone & notification!")
-                    .font(.system(size: 12, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.6))
-            }
-
-            // Message input + 1-tap mood chips
-            VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     Image(systemName: "bubble.left.and.bubble.right.fill")
                         .font(.system(size: 13))
@@ -520,42 +518,78 @@ struct ContentView: View {
 
                     TextField(
                         syncService.pairCode.isEmpty
-                            ? "Status note for \(syncService.myPetProfile.name)…"
-                            : "Message for your partner's notification…",
+                            ? "Write a status note for \(syncService.myPetProfile.name)…"
+                            : "Send a message to notify your partner…",
                         text: $messageInput
                     )
                     .font(.system(size: 13, design: .rounded))
                     .foregroundStyle(.white)
+                    .submitLabel(.send)
                     .onSubmit {
-                        triggerMyAction(syncService.myAction)
+                        sendComposedMessage()
                     }
 
-                    if !messageInput.isEmpty {
+                    Button {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        sendComposedMessage()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "paperplane.fill")
+                                .font(.system(size: 11, weight: .bold))
+                            Text("Send")
+                                .font(.system(size: 12, weight: .heavy, design: .rounded))
+                        }
+                        .foregroundStyle(canSendMessage ? Color.black : Color.white.opacity(0.45))
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill(canSendMessage ? Color.white : Color.white.opacity(0.12))
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!canSendMessage)
+                }
+                .padding(.leading, 12)
+                .padding(.trailing, 8)
+                .padding(.vertical, 7)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(.white.opacity(0.07))
+                )
+
+                if let activeMsg = syncService.myMessage, !activeMsg.isEmpty {
+                    HStack(spacing: 6) {
+                        Text("Showing on Island: “\(activeMsg)”")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.72))
+                            .lineLimit(1)
+
+                        Spacer(minLength: 4)
+
                         Button {
-                            messageInput = ""
                             Task {
                                 await syncService.clearMyMessage()
                             }
                         } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.white.opacity(0.45))
+                            HStack(spacing: 3) {
+                                Image(systemName: "xmark.circle.fill")
+                                Text("Clear")
+                            }
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.55))
                         }
+                        .buttonStyle(.plain)
                     }
+                    .padding(.horizontal, 4)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(.white.opacity(0.07))
-                )
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(quickMoodChips, id: \.0) { phrase, suggestedAction in
                             Button {
                                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                messageInput = phrase
-                                triggerMyAction(suggestedAction)
+                                sendQuickMessageChip(phrase: phrase, action: suggestedAction)
                             } label: {
                                 Text(phrase)
                                     .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -570,6 +604,20 @@ struct ContentView: View {
                         }
                     }
                 }
+            }
+
+            // 2. Silent Pet Action Grid (Never Pushes Notifications)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("SET \(syncService.myPetProfile.name.uppercased())'S ACTION (SILENT ISLAND SYNC)")
+                    .font(.system(size: 11, weight: .heavy, design: .rounded))
+                    .tracking(0.7)
+                    .foregroundStyle(.white.opacity(0.55))
+
+                Text(syncService.pairCode.isEmpty
+                     ? "Updates \(syncService.myPetProfile.name) on your Dynamic Island."
+                     : "Updates \(syncService.myPetProfile.name) on both Dynamic Islands silently without sending a notification.")
+                    .font(.system(size: 12, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.6))
             }
 
             LazyVGrid(columns: gridColumns, spacing: 12) {
@@ -597,7 +645,7 @@ struct ContentView: View {
                                         .foregroundStyle(.white)
                                         .lineLimit(1)
                                 }
-                                Text(syncService.pairCode.isEmpty ? "Update My Island" : "Sync Both Phones")
+                                Text(syncService.pairCode.isEmpty ? "Update My Island" : "Silent Sync")
                                     .font(.system(size: 11, weight: .medium, design: .rounded))
                                     .foregroundStyle(.white.opacity(0.52))
                             }
@@ -623,14 +671,35 @@ struct ContentView: View {
         }
     }
 
-    private func triggerMyAction(_ action: PetAction) {
-        let noteToSend = messageInput
+    private func sendComposedMessage() {
+        let text = messageInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        messageInput = ""
         Task {
-            await syncService.setMyPetAction(action, message: noteToSend)
-            if !islandController.isRunningOnIsland {
-                let state = SharedStorage.shared.currentContentState()
-                await islandController.startIsland(with: state)
-            }
+            await syncService.sendMyMessage(text)
+            await ensureIslandStarted()
+        }
+    }
+
+    private func sendQuickMessageChip(phrase: String, action: PetAction) {
+        messageInput = ""
+        Task {
+            await syncService.sendMyMessage(phrase, optionalAction: action)
+            await ensureIslandStarted()
+        }
+    }
+
+    private func triggerMyAction(_ action: PetAction) {
+        Task {
+            await syncService.setMyPetAction(action)
+            await ensureIslandStarted()
+        }
+    }
+
+    private func ensureIslandStarted() async {
+        if !islandController.isRunningOnIsland {
+            let state = SharedStorage.shared.currentContentState()
+            await islandController.startIsland(with: state)
         }
     }
 

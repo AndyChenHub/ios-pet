@@ -4,15 +4,31 @@ on:
   push:
     branches: ["main", "master"]
   pull_request:
+    branches: ["main", "master"]
   workflow_dispatch:
+    inputs:
+      version_override:
+        description: "Optional semantic version override (e.g. 1.2.0). Leave empty to use VERSION file."
+        required: false
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   build-ipa:
-    name: Build iOS App & Dynamic Island Widget (.ipa)
+    name: Build Versioned iOS App & Dynamic Island Widget (.ipa)
     runs-on: macos-15
+    permissions:
+      contents: read
+    outputs:
+      app_version: ${{ steps.meta.outputs.app_version }}
+      build_number: ${{ steps.meta.outputs.build_number }}
+      short_sha: ${{ steps.meta.outputs.short_sha }}
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+      artifact_name: ${{ steps.meta.outputs.artifact_name }}
+      ipa_filename: ${{ steps.meta.outputs.ipa_filename }}
+      ipa_sha256: ${{ steps.package.outputs.ipa_sha256 }}
 
     steps:
       - name: Checkout repository
@@ -20,34 +36,208 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Resolve & validate IPA version metadata
+        id: meta
+        env:
+          INPUT_VERSION: ${{ inputs.version_override }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          RAW_VERSION="${INPUT_VERSION:-}"
+          if [ -z "$RAW_VERSION" ]; then
+            RAW_VERSION="$(tr -d '[:space:]' < VERSION)"
+          fi
+
+          if [[ ! "$RAW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid semantic version '$RAW_VERSION' (expected X.Y.Z, e.g. 1.1.0)"
+            exit 1
+          fi
+          if [[ ! "$RUN_NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "::error::Invalid GitHub run number '$RUN_NUMBER'"
+            exit 1
+          fi
+
+          SHORT_SHA="$(git rev-parse --short=7 HEAD)"
+          RELEASE_TAG="v${RAW_VERSION}-b${RUN_NUMBER}"
+          ARTIFACT_NAME="IslandPup-${RELEASE_TAG}"
+          IPA_FILENAME="IslandPup-${RELEASE_TAG}.ipa"
+
+          {
+            echo "app_version=${RAW_VERSION}"
+            echo "build_number=${RUN_NUMBER}"
+            echo "short_sha=${SHORT_SHA}"
+            echo "release_tag=${RELEASE_TAG}"
+            echo "artifact_name=${ARTIFACT_NAME}"
+            echo "ipa_filename=${IPA_FILENAME}"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Show Xcode version
         run: xcodebuild -version
 
-      - name: Build unsigned Release iOS App + WidgetExtension
+      - name: Build versioned unsigned Release iOS App + WidgetExtension
+        env:
+          APP_VERSION: ${{ steps.meta.outputs.app_version }}
+          BUILD_NUMBER: ${{ steps.meta.outputs.build_number }}
+          SHORT_SHA: ${{ steps.meta.outputs.short_sha }}
         run: |
+          set -euo pipefail
           xcodebuild clean build \
             -project IslandPup.xcodeproj \
             -scheme IslandPup \
             -configuration Release \
             -destination "generic/platform=iOS" \
             -derivedDataPath build/DerivedData \
+            MARKETING_VERSION="$APP_VERSION" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            GIT_COMMIT_SHA="$SHORT_SHA" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
 
-      - name: Package IslandPup.ipa (for AltStore / SideStore / Sideloadly)
+      - name: Package versioned IslandPup IPA & verify Info.plist versions
+        id: package
+        env:
+          APP_VERSION: ${{ steps.meta.outputs.app_version }}
+          BUILD_NUMBER: ${{ steps.meta.outputs.build_number }}
+          SHORT_SHA: ${{ steps.meta.outputs.short_sha }}
+          RELEASE_TAG: ${{ steps.meta.outputs.release_tag }}
+          IPA_FILENAME: ${{ steps.meta.outputs.ipa_filename }}
         run: |
+          set -euo pipefail
           APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/IslandPup.app"
+          EXT_PATH="$APP_PATH/PlugIns/IslandPupWidgetExtension.appex"
           test -d "$APP_PATH"
-          test -d "$APP_PATH/PlugIns/IslandPupWidgetExtension.appex"
-          mkdir -p build/ipa/Payload
-          cp -R "$APP_PATH" build/ipa/Payload/IslandPup.app
-          cd build/ipa
-          zip -qry IslandPup.ipa Payload
+          test -d "$EXT_PATH"
 
-      - name: Upload IslandPup.ipa Artifact
+          APP_SHORT_VER="$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP_PATH/Info.plist")"
+          APP_BUILD_VER="$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP_PATH/Info.plist")"
+          EXT_SHORT_VER="$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$EXT_PATH/Info.plist")"
+          EXT_BUILD_VER="$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$EXT_PATH/Info.plist")"
+
+          if [ "$APP_SHORT_VER" != "$APP_VERSION" ] || [ "$EXT_SHORT_VER" != "$APP_VERSION" ]; then
+            echo "::error::Version mismatch: app=$APP_SHORT_VER widget=$EXT_SHORT_VER expected=$APP_VERSION"
+            exit 1
+          fi
+          if [ "$APP_BUILD_VER" != "$BUILD_NUMBER" ] || [ "$EXT_BUILD_VER" != "$BUILD_NUMBER" ]; then
+            echo "::error::Build mismatch: app=$APP_BUILD_VER widget=$EXT_BUILD_VER expected=$BUILD_NUMBER"
+            exit 1
+          fi
+
+          mkdir -p build/ipa/Payload build/dist
+          cp -R "$APP_PATH" build/ipa/Payload/IslandPup.app
+          (
+            cd build/ipa
+            zip -qry "../dist/$IPA_FILENAME" Payload
+          )
+          (
+            cd build/dist
+            shasum -a 256 "$IPA_FILENAME" > "${IPA_FILENAME}.sha256"
+          )
+
+          IPA_SHA256="$(awk '{print $1}' "build/dist/${IPA_FILENAME}.sha256")"
+          echo "ipa_sha256=${IPA_SHA256}" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### 🐾 IslandPup Versioned IPA Build"
+            echo "- **Release Tag**: \`${RELEASE_TAG}\`"
+            echo "- **Bundle Version**: \`${APP_VERSION}\` (Build \`${BUILD_NUMBER}\`)"
+            echo "- **Commit**: \`${SHORT_SHA}\`"
+            echo "- **IPA File**: \`${IPA_FILENAME}\`"
+            echo "- **SHA-256**: \`${IPA_SHA256}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Versioned IPA Artifact
         uses: actions/upload-artifact@v6
         with:
-          name: IslandPup-iOS-IPA
-          path: build/ipa/IslandPup.ipa
+          name: ${{ steps.meta.outputs.artifact_name }}
+          path: |
+            build/dist/${{ steps.meta.outputs.ipa_filename }}
+            build/dist/${{ steps.meta.outputs.ipa_filename }}.sha256
+          retention-days: 90
           if-no-files-found: error
+
+  publish-release:
+    name: Publish Versioned IPA to GitHub Releases
+    needs: build-ipa
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout git history for changelog
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download Versioned IPA Artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ needs.build-ipa.outputs.artifact_name }}
+          path: dist
+
+      - name: Verify checksum & publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_SHA: ${{ github.sha }}
+          APP_VERSION: ${{ needs.build-ipa.outputs.app_version }}
+          BUILD_NUMBER: ${{ needs.build-ipa.outputs.build_number }}
+          SHORT_SHA: ${{ needs.build-ipa.outputs.short_sha }}
+          RELEASE_TAG: ${{ needs.build-ipa.outputs.release_tag }}
+          IPA_FILENAME: ${{ needs.build-ipa.outputs.ipa_filename }}
+          IPA_SHA256: ${{ needs.build-ipa.outputs.ipa_sha256 }}
+        run: |
+          set -euo pipefail
+          (
+            cd dist
+            sha256sum -c "${IPA_FILENAME}.sha256"
+          )
+
+          PREV_TAG="$(git describe --tags --abbrev=0 --match 'v*' "${COMMIT_SHA}^" 2>/dev/null || true)"
+          if [ -n "$PREV_TAG" ]; then
+            CHANGELOG="$(git log "${PREV_TAG}..${COMMIT_SHA}" --pretty=format:'- %s (`%h`)' --no-merges)"
+          else
+            CHANGELOG="$(git log -n 5 "${COMMIT_SHA}" --pretty=format:'- %s (`%h`)' --no-merges)"
+          fi
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG="- Automated IPA build for \`${SHORT_SHA}\`"
+          fi
+
+          cat_notes() {
+            echo "## 🐾 IslandPup ${RELEASE_TAG}"
+            echo ""
+            echo "| Field | Value |"
+            echo "| :--- | :--- |"
+            echo "| **App Version (\`CFBundleShortVersionString\`)** | \`${APP_VERSION}\` |"
+            echo "| **Build Number (\`CFBundleVersion\`)** | \`${BUILD_NUMBER}\` |"
+            echo "| **Commit** | \`${SHORT_SHA}\` |"
+            echo "| **IPA Asset** | \`${IPA_FILENAME}\` |"
+            echo "| **SHA-256** | \`${IPA_SHA256}\` |"
+            echo ""
+            echo "### What's Changed"
+            printf '%s\n' "$CHANGELOG"
+            echo ""
+            echo "### Installing via AltStore / SideStore / Sideloadly"
+            echo "1. Download **\`${IPA_FILENAME}\`** from **Assets** below."
+            echo "2. Keep **App Extensions (PlugIns)** enabled during installation so \`IslandPupWidgetExtension\` can render on the Dynamic Island."
+          }
+          cat_notes > release-notes.md
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" \
+              --title "IslandPup ${RELEASE_TAG}" \
+              --notes-file release-notes.md
+            gh release upload "$RELEASE_TAG" \
+              "dist/${IPA_FILENAME}" \
+              "dist/${IPA_FILENAME}.sha256" \
+              --clobber
+          else
+            gh release create "$RELEASE_TAG" \
+              "dist/${IPA_FILENAME}" \
+              "dist/${IPA_FILENAME}.sha256" \
+              --target "$COMMIT_SHA" \
+              --title "IslandPup ${RELEASE_TAG}" \
+              --notes-file release-notes.md \
+              --latest
+          fi

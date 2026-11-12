@@ -20,6 +20,9 @@ def oid(key: str) -> str:
 
 
 def generate_pbxproj() -> str:
+    version_file = ROOT / "VERSION"
+    marketing_version = version_file.read_text(encoding="utf-8").strip() if version_file.exists() else "1.1.0"
+
     shared_swift = [
         ("MicroSpriteCodec.swift", "Shared/Models/MicroSpriteCodec.swift"),
         ("PetModels.swift", "Shared/Models/PetModels.swift"),
@@ -418,8 +421,9 @@ def generate_pbxproj() -> str:
 					"DEBUG=1",
 					"$(inherited)",
 				);
+				GIT_COMMIT_SHA = local;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = {marketing_version};
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -440,8 +444,9 @@ def generate_pbxproj() -> str:
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GIT_COMMIT_SHA = local;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = {marketing_version};
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
