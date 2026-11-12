@@ -13,12 +13,14 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - name: Ensure XcodeGen is installed
+      - name: Regenerate Xcode project if XcodeGen is available
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
         run: |
           if ! command -v xcodegen >/dev/null 2>&1; then
-            brew install xcodegen
+            brew install --quiet xcodegen
           fi
           xcodegen generate
 
@@ -48,7 +50,7 @@ jobs:
           zip -qry IslandPup.ipa Payload
 
       - name: Upload IslandPup.ipa Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: IslandPup-iOS-IPA
           path: build/ipa/IslandPup.ipa
