@@ -15,7 +15,7 @@ struct IslandPupLiveActivity: Widget {
             let partnerDisplayPet = state.displayPartnerPet
             let interaction = state.activeInteraction
 
-            DynamicIsland {
+            return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     VStack(spacing: 3) {
                         ZStack {

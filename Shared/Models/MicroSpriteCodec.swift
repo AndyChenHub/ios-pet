@@ -203,7 +203,11 @@ public enum MicroSpriteCodec {
 
         // Pass 1: pick distinct color clusters first so eyes/collars/accents stay crisp
         for item in sorted where centers.count < 15 {
-            let candidate = (item.sumR / item.count, item.sumG / item.count, item.sumB / item.count)
+            let candidate = (
+                r: item.sumR / item.count,
+                g: item.sumG / item.count,
+                b: item.sumB / item.count
+            )
             let tooClose = centers.contains { c in
                 colorDistSq(c, candidate) < 520
             }
@@ -215,7 +219,11 @@ public enum MicroSpriteCodec {
         // Fill remaining slots with most frequent buckets if needed
         if centers.count < 15 {
             for item in sorted where centers.count < 15 {
-                let candidate = (item.sumR / item.count, item.sumG / item.count, item.sumB / item.count)
+                let candidate = (
+                    r: item.sumR / item.count,
+                    g: item.sumG / item.count,
+                    b: item.sumB / item.count
+                )
                 if !centers.contains(where: { $0.r == candidate.r && $0.g == candidate.g && $0.b == candidate.b }) {
                     centers.append(candidate)
                 }
