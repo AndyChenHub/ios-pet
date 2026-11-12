@@ -7,20 +7,24 @@ struct IslandPupLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: PetActivityAttributes.self) { context in
             LockScreenPetBannerView(state: context.state)
-                .activityBackgroundTint(Color(red: 0.06, green: 0.07, blue: 0.11).opacity(0.92))
+                .activityBackgroundTint(.black)
                 .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     ZStack {
-                        Circle()
-                            .fill(context.state.action.accentColor.opacity(0.18))
-                            .frame(width: 64, height: 64)
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(.black)
+                            .frame(width: 60, height: 60)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .strokeBorder(context.state.action.accentColor.opacity(0.45), lineWidth: 1.5)
+                            )
 
                         AnimatedPetSpriteView(
                             character: context.state.character,
                             action: context.state.action,
-                            size: 62,
+                            size: 54,
                             driver: .widgetTimerGate(anchor: context.state.anchorDate),
                             showSleepBadge: true
                         )
@@ -129,20 +133,19 @@ struct IslandPupLiveActivity: Widget {
                 AnimatedPetSpriteView(
                     character: context.state.character,
                     action: context.state.action,
-                    size: 26,
+                    size: 24,
                     driver: .widgetTimerGate(anchor: context.state.anchorDate)
                 )
-                .padding(.leading, 2)
             } compactTrailing: {
                 Text(context.state.action.emoji)
                     .font(.system(size: 14))
-                    .padding(.horizontal, 4)
+                    .padding(.horizontal, 2)
             } minimal: {
                 AnimatedPetSpriteView(
                     character: context.state.character,
                     action: context.state.action,
-                    size: 24,
-                    driver: .widgetTimerGate(anchor: context.state.anchorDate)
+                    size: 22,
+                    driver: .widgetStatic
                 )
             }
             .keylineTint(context.state.character.themeColor)
@@ -170,13 +173,17 @@ private struct LockScreenPetBannerView: View {
             HStack(spacing: 12) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(state.action.accentColor.opacity(0.18))
-                        .frame(width: 72, height: 72)
+                        .fill(.black)
+                        .frame(width: 68, height: 68)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .strokeBorder(state.action.accentColor.opacity(0.45), lineWidth: 1.5)
+                        )
 
                     AnimatedPetSpriteView(
                         character: state.character,
                         action: state.action,
-                        size: 68,
+                        size: 60,
                         driver: .widgetTimerGate(anchor: state.anchorDate),
                         showSleepBadge: true
                     )

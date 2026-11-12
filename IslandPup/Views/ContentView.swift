@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var controlTarget: ControlTarget = .partner
     @State private var noteText: String = ""
     @State private var showPairSheet: Bool = false
+    @State private var didAutoLaunchIsland: Bool = false
 
     private let quickNoteChips: [(String, PetAction)] = [
         ("Time for sleep! 🌙", .sleeping),
@@ -84,6 +85,15 @@ struct ContentView: View {
             .onAppear {
                 controlTarget = syncService.pairCode.isEmpty ? .mine : .partner
                 islandController.refreshActiveStatus()
+                if !didAutoLaunchIsland {
+                    didAutoLaunchIsland = true
+                    if !islandController.isRunningOnIsland {
+                        let state = SharedStorage.shared.currentContentState()
+                        Task {
+                            await islandController.startIsland(with: state)
+                        }
+                    }
+                }
             }
             .onChange(of: syncService.pairCode) { _, newCode in
                 if !newCode.isEmpty {
@@ -117,9 +127,11 @@ struct ContentView: View {
                         .font(.system(size: 16, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
 
-                    Text("Swipe home or lock your iPhone to see \(syncService.myCharacter.displayName) animate on the Island.")
+                    Text(islandController.isRunningOnIsland
+                         ? "Swipe up to the Home Screen to see \(syncService.myCharacter.displayName) on the Dynamic Island (iOS hides an app's Live Activity while the app itself is open)."
+                         : "Tap Start, then swipe up to the Home Screen or lock your iPhone to see \(syncService.myCharacter.displayName) animate on the Island.")
                         .font(.system(size: 12, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.62))
+                        .foregroundStyle(.white.opacity(0.68))
                 }
 
                 Spacer()

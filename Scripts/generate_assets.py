@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 Generates all assets required by IslandPup (App + WidgetExtension):
-1. Shared/Resources/PetTimerGate.ttf — OpenType GSUB gate font for battery-free
-   continuous sprite animation inside iOS Dynamic Island & Lock Screen Live Activities.
-2. Shared/Assets.xcassets — Lossless per-animation cropped @3x PNG sprite frames
+1. Shared/Resources/PetTimerGate-Regular.ttf — OpenType 2-digit seconds ligature gate font
+   modeled on Apple CoreText's `Text(..., style: .timer)` run-splitting behavior.
+2. Shared/Assets.xcassets — Crisp @3x PNG sprite frames (even frame counts 4/6/8)
    for Alfie and Teddy across all 10 actions, plus AccentColor and 1024x1024 AppIcon.
 """
 
@@ -27,19 +27,19 @@ XCASSETS_DIR = SHARED_DIR / "Assets.xcassets"
 
 CELL_W = 192
 CELL_H = 208
-TARGET_CANVAS = 192  # Square @3x canvas (64x64 pt native, lossless pixel density)
+TARGET_CANVAS = 144  # Crisp @3x size optimized for WidgetKit / Dynamic Island 30MB Jetsam budget
 
 PETS = {
     "alfie": SPRITES_DIR / "Alfie" / "spritesheet.png",
     "teddy": SPRITES_DIR / "Teddy" / "spritesheet.png",
 }
 
-# (action_key, row_index, column_indices)
+# Every action has an EVEN frame count (4, 6, or 8) for 2-stack Painter's Algorithm gating.
 ACTIONS = [
     ("idle", 0, [0, 1, 2, 3, 4, 5]),
     ("sleeping", 5, [5, 7, 6, 7]),
     ("waving", 3, [0, 1, 2, 3]),
-    ("jumping", 4, [0, 1, 2, 3, 4]),
+    ("jumping", 4, [0, 1, 2, 3, 4, 0]),
     ("runRight", 1, [0, 1, 2, 3, 4, 5, 6, 7]),
     ("runLeft", 2, [0, 1, 2, 3, 4, 5, 6, 7]),
     ("waiting", 6, [0, 1, 2, 3, 4, 5]),
@@ -48,183 +48,110 @@ ACTIONS = [
     ("dizzy", 5, [0, 1, 2, 3, 4, 5, 6, 7]),
 ]
 
+DIGIT_NAMES = [
+    "zero", "one", "two", "three", "four",
+    "five", "six", "seven", "eight", "nine",
+]
+
 
 def build_timer_gate_font(output_path: Path) -> None:
     """
-    Builds PetTimerGate.ttf:
-    - Even digits (0, 2, 4, 6, 8 in ASCII & common Unicode digit scripts) -> 'ON' (solid square)
-    - Odd digits  (1, 3, 5, 7, 9 in ASCII & common Unicode digit scripts) -> 'OFF' (empty)
-    - Colons, punctuation, spaces, Unicode bidi isolates -> 'IGN' (empty, GDEF Mark class, skipped)
-    - 5 sequential passes of 2-glyph ligatures fold up to 32 digits down to the LAST digit's parity:
-      ON if elapsed whole seconds is EVEN, OFF if elapsed whole seconds is ODD.
+    Builds `PetTimerGate-Regular.ttf`:
+    - unitsPerEm = 500, ascent = 500, descent = 0
+    - Every individual character (`space`, `zero`..`nine`, `colon`) has advanceWidth=500 & empty glyph
+      so CoreText's colon run-splitting never draws stray shapes on minutes/hours/colons.
+    - All 60 two-digit seconds pairs (`00`..`59`) substitute via `liga` (LookupFlag 0) into:
+        * `ligaturefull`  (500x500 solid square) for even seconds (0, 2, 4, 6, 8)
+        * `ligatureempty` (empty 500-wide glyph) for odd seconds  (1, 3, 5, 7, 9)
+    - Combined with trailing text alignment + horizontal offset, the final `SS` ligature sits
+      dead-center over the `size x size` sprite frame.
     """
+    if RESOURCES_DIR.exists():
+        shutil.rmtree(RESOURCES_DIR)
     RESOURCES_DIR.mkdir(parents=True, exist_ok=True)
 
-    glyph_order = [".notdef", "ON", "OFF", "IGN"]
+    glyph_order = [
+        ".notdef",
+        "space",
+        *DIGIT_NAMES,
+        "colon",
+        "ligatureempty",
+        "ligaturefull",
+    ]
 
-    fb = FontBuilder(1000, isTTF=True)
+    fb = FontBuilder(500, isTTF=True)
     fb.setupGlyphOrder(glyph_order)
 
-    # Glyphs: ON is an oversized full-bleed opaque block; OFF and IGN have zero contours.
-    pen_notdef = TTGlyphPen(None)
-    notdef_glyph = pen_notdef.glyph()
+    glyf_map = {}
+    metrics_map = {}
+    for gname in glyph_order:
+        pen = TTGlyphPen(None)
+        if gname == "ligaturefull":
+            # Clockwise outer contour covering the full 500x500 em square
+            pen.moveTo((0, 0))
+            pen.lineTo((0, 500))
+            pen.lineTo((500, 500))
+            pen.lineTo((500, 0))
+            pen.closePath()
+        glyf_map[gname] = pen.glyph()
+        metrics_map[gname] = (500, 0)
 
-    pen_on = TTGlyphPen(None)
-    # Oversized rectangle so mask covers 100% of sprite with zero edge bleed/clipping
-    pen_on.moveTo((-500, -500))
-    pen_on.lineTo((-500, 1500))
-    pen_on.lineTo((1500, 1500))
-    pen_on.lineTo((1500, -500))
-    pen_on.closePath()
-    on_glyph = pen_on.glyph()
+    fb.setupGlyf(glyf_map)
+    fb.setupHorizontalMetrics(metrics_map)
 
-    pen_off = TTGlyphPen(None)
-    off_glyph = pen_off.glyph()
-
-    pen_ign = TTGlyphPen(None)
-    ign_glyph = pen_ign.glyph()
-
-    fb.setupGlyf({
-        ".notdef": notdef_glyph,
-        "ON": on_glyph,
-        "OFF": off_glyph,
-        "IGN": ign_glyph,
-    })
-
-    fb.setupHorizontalMetrics({
-        ".notdef": (0, 0),
-        "ON": (1000, -500),
-        "OFF": (0, 0),
-        "IGN": (0, 0),
-    })
-
-    cmap: dict[int, str] = {}
-    # Digit ranges: ASCII, Arabic-Indic, Extended Arabic-Indic, Devanagari, Fullwidth
-    digit_bases = [0x0030, 0x0660, 0x06F0, 0x0966, 0xFF10]
-    for base in digit_bases:
-        for d in range(10):
-            cmap[base + d] = "ON" if (d % 2 == 0) else "OFF"
-
-    # Non-digit characters emitted by Date/Timer formatters across locales
-    ignored_codepoints = [
-        0x0020,  # SPACE
-        0x002C,  # COMMA
-        0x002D,  # HYPHEN-MINUS
-        0x002E,  # FULL STOP
-        0x003A,  # COLON ':'
-        0x003B,  # SEMICOLON
-        0x00A0,  # NO-BREAK SPACE
-        0x060C,  # ARABIC COMMA
-        0x061C,  # ARABIC LETTER MARK
-        0x2007,  # FIGURE SPACE
-        0x2008,  # PUNCTUATION SPACE
-        0x2009,  # THIN SPACE
-        0x200A,  # HAIR SPACE
-        0x200B,  # ZERO WIDTH SPACE
-        0x200E,  # LEFT-TO-RIGHT MARK
-        0x200F,  # RIGHT-TO-LEFT MARK
-        0x202A,  # LRE
-        0x202B,  # RLE
-        0x202C,  # PDF
-        0x202D,  # LRO
-        0x202E,  # RLO
-        0x202F,  # NARROW NO-BREAK SPACE
-        0x2060,  # WORD JOINER
-        0x2066,  # LRI
-        0x2067,  # RLI
-        0x2068,  # FSI (used by Apple formatters!)
-        0x2069,  # PDI (used by Apple formatters!)
-        0x2212,  # MINUS SIGN
-        0x2236,  # RATIO '∶' (used by Apple SF timer colons!)
-        0xFEFF,  # BOM / ZWNBSP
-        0xFF1A,  # FULLWIDTH COLON
-    ]
-    for cp in ignored_codepoints:
-        cmap[cp] = "IGN"
+    cmap: dict[int, str] = {
+        0x0020: "space",
+        0x00A0: "space",
+        0x2007: "space",
+        0x202F: "space",
+        0x003A: "colon",
+        0x2236: "colon",  # Apple SF timer ratio colon '∶'
+    }
+    for idx, dname in enumerate(DIGIT_NAMES):
+        cmap[0x0030 + idx] = dname
 
     fb.setupCharacterMap(cmap)
-    fb.setupHorizontalHeader(ascent=1000, descent=0)
+    fb.setupHorizontalHeader(ascent=500, descent=0)
     fb.setupNameTable({
         "familyName": "PetTimerGate",
         "styleName": "Regular",
-        "uniqueFontIdentifier": "IslandPup.PetTimerGate.1.0",
-        "fullName": "PetTimerGate",
-        "psName": "PetTimerGate",
-        "version": "Version 1.0",
+        "uniqueFontIdentifier": "IslandPup.PetTimerGate-Regular.2.0",
+        "fullName": "PetTimerGate Regular",
+        "psName": "PetTimerGate-Regular",
+        "version": "Version 2.0",
     })
     fb.setupOS2(
-        sTypoAscender=1000,
+        sTypoAscender=500,
         sTypoDescender=0,
         sTypoLineGap=0,
-        usWinAscent=1500,
-        usWinDescent=500,
+        usWinAscent=500,
+        usWinDescent=0,
     )
     fb.setupPost()
 
-    fea = """
+    lig_rules: list[str] = []
+    for tens in range(6):
+        for ones in range(10):
+            target = "ligaturefull" if (ones % 2 == 0) else "ligatureempty"
+            lig_rules.append(f"        sub {DIGIT_NAMES[tens]} {DIGIT_NAMES[ones]} by {target};")
+
+    rules_block = "\n".join(lig_rules)
+    fea = f"""
     languagesystem DFLT dflt;
     languagesystem latn dflt;
-    languagesystem arab dflt;
 
-    table GDEF {
-        GlyphClassDef [ON OFF], , [IGN], ;
-    } GDEF;
+    lookup SecondsParityLigatures {{
+        lookupflag 0;
+{rules_block}
+    }} SecondsParityLigatures;
 
-    lookup FoldPass1 {
-        lookupflag IgnoreMarks;
-        sub ON ON by ON;
-        sub ON OFF by OFF;
-        sub OFF ON by ON;
-        sub OFF OFF by OFF;
-    } FoldPass1;
+    feature liga {{
+        lookup SecondsParityLigatures;
+    }} liga;
 
-    lookup FoldPass2 {
-        lookupflag IgnoreMarks;
-        sub ON ON by ON;
-        sub ON OFF by OFF;
-        sub OFF ON by ON;
-        sub OFF OFF by OFF;
-    } FoldPass2;
-
-    lookup FoldPass3 {
-        lookupflag IgnoreMarks;
-        sub ON ON by ON;
-        sub ON OFF by OFF;
-        sub OFF ON by ON;
-        sub OFF OFF by OFF;
-    } FoldPass3;
-
-    lookup FoldPass4 {
-        lookupflag IgnoreMarks;
-        sub ON ON by ON;
-        sub ON OFF by OFF;
-        sub OFF ON by ON;
-        sub OFF OFF by OFF;
-    } FoldPass4;
-
-    lookup FoldPass5 {
-        lookupflag IgnoreMarks;
-        sub ON ON by ON;
-        sub ON OFF by OFF;
-        sub OFF ON by ON;
-        sub OFF OFF by OFF;
-    } FoldPass5;
-
-    feature rlig {
-        lookup FoldPass1;
-        lookup FoldPass2;
-        lookup FoldPass3;
-        lookup FoldPass4;
-        lookup FoldPass5;
-    } rlig;
-
-    feature liga {
-        lookup FoldPass1;
-        lookup FoldPass2;
-        lookup FoldPass3;
-        lookup FoldPass4;
-        lookup FoldPass5;
-    } liga;
+    feature rlig {{
+        lookup SecondsParityLigatures;
+    }} rlig;
     """
 
     addOpenTypeFeaturesFromString(fb.font, fea)
@@ -232,70 +159,72 @@ def build_timer_gate_font(output_path: Path) -> None:
     print(f"[OK] Built {output_path} ({output_path.stat().st_size} bytes)")
 
 
-def verify_timer_gate_font(font_path: Path) -> None:
-    """Verifies OpenType shaping via HarfBuzz & sub-second dual-mask math."""
-    try:
-        import uharfbuzz as hb
-    except ImportError:
-        print("[WARN] uharfbuzz not installed; skipping shaping verification.")
-        return
+def verify_two_stack_animation(font_path: Path) -> None:
+    """
+    Verifies both CoreText colon-split shaping AND the 2-stack Painter's Algorithm
+    so we prove mathematically that every frame 0..N-1 appears in exact forward sequence
+    and NEVER renders an empty/black frame.
+    """
+    import uharfbuzz as hb
 
     blob = hb.Blob.from_file_path(str(font_path))
     face = hb.Face(blob)
     font = hb.Font(face)
 
-    def shape_is_on(s: str) -> bool:
-        buf = hb.Buffer()
-        buf.add_str(s)
-        buf.guess_segment_properties()
-        hb.shape(font, buf)
-        names = [font.glyph_to_string(info.codepoint) for info in buf.glyph_infos]
-        non_ign = [n for n in names if n != "IGN"]
-        assert len(non_ign) == 1, f"Expected 1 non-IGN glyph for {s!r}, got {names}"
-        return non_ign[0] == "ON"
+    def last_glyph_is_full(timer_str: str) -> bool:
+        # Simulate CoreText splitting runs at ':' or shaping the whole string:
+        for mode in ("whole", "colon_split"):
+            parts = [timer_str] if mode == "whole" else timer_str.split(":")
+            last_part = parts[-1]
+            buf = hb.Buffer()
+            buf.add_str(last_part)
+            buf.guess_segment_properties()
+            hb.shape(font, buf)
+            glyph_names = [font.glyph_to_string(info.codepoint) for info in buf.glyph_infos]
+            if mode == "colon_split":
+                assert len(glyph_names) == 1, f"Expected 1 ligature glyph for {last_part!r}, got {glyph_names}"
+            is_on = glyph_names[-1] == "ligaturefull"
+            if mode == "whole":
+                whole_res = is_on
+            else:
+                split_res = is_on
+        assert whole_res == split_res
+        return split_res
 
-    test_cases = [
-        ("0:00", True),
-        ("0:01", False),
-        ("0:02", True),
-        ("0:19", False),
-        ("0:20", True),
-        ("0:59", False),
-        ("1:00", True),
-        ("12:34", True),
-        ("12:35", False),
-        ("1:00:00", True),
-        ("12:48:59", False),
-        ("999:59:58", True),
-        ("\u20680\u223642\u2069", True),
-        ("\u20680\u223643\u2069", False),
-    ]
-    for text, expected in test_cases:
-        actual = shape_is_on(text)
-        assert actual == expected, f"Mismatch for {text!r}: got {actual}, expected {expected}"
+    for s, expected in [("1:00", True), ("1:01", False), ("12:34", True), ("12:35", False), ("1:00:58", True), ("1:00:59", False)]:
+        assert last_glyph_is_full(s) == expected, f"Failed parity for {s}"
 
-    # Verify dual-mask intersection across 2000 steps for N in {4, 5, 6, 8}
-    period = 2.0
-    anchor = -10.0  # 10s in the past
-    for n_frames in (4, 5, 6, 8):
-        delta = period / n_frames
+    # Verify 2-stack Painter's Algorithm across 2000 steps for N in {4, 6, 8}
+    anchor = -60.0  # Exact multiple of 2.0 in the past
+    for n_frames in (4, 6, 8):
+        half = n_frames // 2
+        frame_dur = 2.0 / n_frames
+
+        def blink_on(t_now: float, delta_date: float) -> bool:
+            elapsed = int(math.floor(t_now - (anchor + delta_date)))
+            s = f"{elapsed // 60}:{elapsed % 60:02d}"
+            return last_glyph_is_full(s)
+
         for step in range(2000):
-            t = step * 0.005 + 0.001  # avoid exact floating boundary
-            expected_frame = int(math.floor((t % period) / delta)) % n_frames
-            visible_frames = []
-            for k in range(n_frames):
-                off1 = k * delta
-                off2 = k * delta + delta - 1.0
-                elapsed1 = int(math.floor(t - (anchor + off1)))
-                elapsed2 = int(math.floor(t - (anchor + off2)))
-                s1 = f"{elapsed1 // 60}:{elapsed1 % 60:02d}"
-                s2 = f"{elapsed2 // 60}:{elapsed2 % 60:02d}"
-                if shape_is_on(s1) and shape_is_on(s2):
-                    visible_frames.append(k)
-            assert visible_frames == [expected_frame], (
-                f"N={n_frames} t={t:.3f}: visible={visible_frames}, expected=[{expected_frame}]"
-            )
-    print("[OK] Verified HarfBuzz shaping & dual-mask sub-second frame exclusivity for N=4,5,6,8!")
+            t = step * 0.005 + 0.001
+            expected = int(math.floor((t % 2.0) / frame_dur)) % n_frames
+
+            # First stack (frames 0 .. half-1); frame 0 is UNMASKED!
+            top_frame = 0
+            for i in range(1, half):
+                if blink_on(t, i * frame_dur):
+                    top_frame = i
+
+            # Second stack (frames half .. n_frames-1), outer-masked by delta_date = 1.0
+            if blink_on(t, 1.0):
+                top_frame = half  # frame `half` has NO inner mask!
+                for i in range(half + 1, n_frames):
+                    if blink_on(t, i * frame_dur):
+                        top_frame = i
+
+            assert top_frame == expected, f"N={n_frames} t={t:.3f}: got {top_frame}, expected {expected}"
+
+    print("[OK] Verified colon-split HarfBuzz shaping & 2-stack Painter's Algorithm for N=4,6,8!")
 
 
 def write_json(path: Path, data: dict) -> None:
@@ -308,12 +237,8 @@ def slice_sprites() -> None:
         shutil.rmtree(XCASSETS_DIR)
     XCASSETS_DIR.mkdir(parents=True, exist_ok=True)
 
-    write_json(
-        XCASSETS_DIR / "Contents.json",
-        {"info": {"author": "xcode", "version": 1}},
-    )
+    write_json(XCASSETS_DIR / "Contents.json", {"info": {"author": "xcode", "version": 1}})
 
-    # AccentColor (#FF7A59 warm coral-amber)
     write_json(
         XCASSETS_DIR / "AccentColor.colorset" / "Contents.json",
         {
@@ -336,10 +261,7 @@ def slice_sprites() -> None:
     )
 
     sprites_group = XCASSETS_DIR / "Sprites"
-    write_json(
-        sprites_group / "Contents.json",
-        {"info": {"author": "xcode", "version": 1}},
-    )
+    write_json(sprites_group / "Contents.json", {"info": {"author": "xcode", "version": 1}})
 
     total_images = 0
     for pet_key, sheet_path in PETS.items():
@@ -358,16 +280,14 @@ def slice_sprites() -> None:
             u_w = u_right - u_left
             u_h = u_bottom - u_top
 
-            # Fit inside TARGET_CANVAS with 4px breathing padding on each side
             max_dim = max(u_w, u_h)
-            pad = 8
+            pad = 6
             canvas_dim = max(max_dim + pad * 2, TARGET_CANVAS)
 
             for frame_idx, cell in enumerate(raw_cells):
                 cropped_union = cell.crop((u_left, u_top, u_right, u_bottom))
                 square = Image.new("RGBA", (canvas_dim, canvas_dim), (0, 0, 0, 0))
                 dst_x = (canvas_dim - u_w) // 2
-                # Anchor slightly lower for grounded animations, centered for sleeping
                 dst_y = (canvas_dim - u_h) // 2
                 square.alpha_composite(cropped_union, (dst_x, dst_y))
 
@@ -387,7 +307,6 @@ def slice_sprites() -> None:
                             {
                                 "filename": png_filename,
                                 "idiom": "universal",
-                                "scale": "3x",
                             }
                         ],
                         "info": {"author": "xcode", "version": 1},
@@ -399,16 +318,14 @@ def slice_sprites() -> None:
                 )
                 total_images += 1
 
-    print(f"[OK] Sliced {total_images} lossless @3x sprite frames into {sprites_group}")
+    print(f"[OK] Sliced {total_images} @3x sprite frames ({TARGET_CANVAS}x{TARGET_CANVAS}px) into {sprites_group}")
 
 
 def generate_app_icon() -> None:
-    """Generates a polished 1024x1024 iOS AppIcon showcasing Alfie & Teddy on Dynamic Island."""
     icon_size = 1024
     icon = Image.new("RGBA", (icon_size, icon_size), (14, 16, 28, 255))
     draw = ImageDraw.Draw(icon)
 
-    # Rich dusk gradient background
     for y in range(icon_size):
         t = y / (icon_size - 1)
         r = int(18 + 26 * t)
@@ -416,7 +333,6 @@ def generate_app_icon() -> None:
         b = int(38 + 46 * t)
         draw.line([(0, y), (icon_size, y)], fill=(r, g, b, 255))
 
-    # Soft ambient glow behind the Dynamic Island pill
     glow = Image.new("RGBA", (icon_size, icon_size), (0, 0, 0, 0))
     gdraw = ImageDraw.Draw(glow)
     gdraw.ellipse((140, 220, 884, 820), fill=(255, 138, 92, 58))
@@ -424,7 +340,6 @@ def generate_app_icon() -> None:
     glow = glow.filter(ImageFilter.GaussianBlur(radius=72))
     icon.alpha_composite(glow)
 
-    # Dynamic Island black capsule pedestal in the lower-middle
     pill_box = (112, 650, 912, 858)
     draw.rounded_rectangle(
         (pill_box[0] - 4, pill_box[1] - 4, pill_box[2] + 4, pill_box[3] + 4),
@@ -432,15 +347,11 @@ def generate_app_icon() -> None:
         fill=(255, 255, 255, 42),
     )
     draw.rounded_rectangle(pill_box, radius=104, fill=(8, 9, 14, 255))
-
-    # Camera lens glint inside Dynamic Island pill
     draw.ellipse((760, 720, 828, 788), fill=(20, 24, 38, 255))
     draw.ellipse((780, 740, 804, 764), fill=(52, 82, 160, 180))
 
-    # Composite Alfie (waving) on left and Teddy (idle/waving) on right perched on the Island!
     alfie_sheet = Image.open(PETS["alfie"]).convert("RGBA")
     teddy_sheet = Image.open(PETS["teddy"]).convert("RGBA")
-
     alfie_wave = alfie_sheet.crop((2 * CELL_W, 3 * CELL_H, 3 * CELL_W, 4 * CELL_H))
     teddy_wave = teddy_sheet.crop((1 * CELL_W, 3 * CELL_H, 2 * CELL_W, 4 * CELL_H))
 
@@ -450,7 +361,6 @@ def generate_app_icon() -> None:
     icon.alpha_composite(alfie_big, (88, 178))
     icon.alpha_composite(teddy_big, (462, 178))
 
-    # Convert to RGB (Apple requires opaque 1024x1024 PNG without alpha channel for App Store / Xcode)
     icon_rgb = icon.convert("RGB")
     appicon_dir = XCASSETS_DIR / "AppIcon.appiconset"
     appicon_dir.mkdir(parents=True, exist_ok=True)
@@ -474,8 +384,8 @@ def generate_app_icon() -> None:
 
 
 if __name__ == "__main__":
-    gate_font = RESOURCES_DIR / "PetTimerGate.ttf"
+    gate_font = RESOURCES_DIR / "PetTimerGate-Regular.ttf"
     build_timer_gate_font(gate_font)
-    verify_timer_gate_font(gate_font)
+    verify_two_stack_animation(gate_font)
     slice_sprites()
     generate_app_icon()

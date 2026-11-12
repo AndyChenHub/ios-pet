@@ -25,9 +25,13 @@
 		<key>NSExtensionPointIdentifier</key>
 		<string>com.apple.widgetkit-extension</string>
 	</dict>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
+	<true/>
 	<key>UIAppFonts</key>
 	<array>
-		<string>PetTimerGate.ttf</string>
+		<string>PetTimerGate-Regular.ttf</string>
 	</array>
 </dict>
 </plist>

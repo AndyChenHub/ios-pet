@@ -32,7 +32,7 @@
 	<true/>
 	<key>UIAppFonts</key>
 	<array>
-		<string>PetTimerGate.ttf</string>
+		<string>PetTimerGate-Regular.ttf</string>
 	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>

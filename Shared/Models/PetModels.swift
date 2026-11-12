@@ -147,7 +147,7 @@ public enum PetAction: String, Codable, CaseIterable, Identifiable, Hashable, Se
         case .idle:     return 6
         case .sleeping: return 4
         case .waving:   return 4
-        case .jumping:  return 5
+        case .jumping:  return 6
         case .runRight: return 8
         case .runLeft:  return 8
         case .waiting:  return 6

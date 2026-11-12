@@ -30,7 +30,7 @@ def generate_pbxproj() -> str:
     ]
     shared_resources = [
         ("Assets.xcassets", "Shared/Assets.xcassets", "folder.assetcatalog"),
-        ("PetTimerGate.ttf", "Shared/Resources/PetTimerGate.ttf", "file"),
+        ("PetTimerGate-Regular.ttf", "Shared/Resources/PetTimerGate-Regular.ttf", "file"),
     ]
     app_swift = [
         ("IslandPupApp.swift", "IslandPup/IslandPupApp.swift"),
@@ -452,7 +452,6 @@ def generate_pbxproj() -> str:
 			buildSettings = {{
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = IslandPup/IslandPup.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				INFOPLIST_FILE = IslandPup/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -471,7 +470,6 @@ def generate_pbxproj() -> str:
 			buildSettings = {{
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = IslandPup/IslandPup.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				INFOPLIST_FILE = IslandPup/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -488,7 +486,6 @@ def generate_pbxproj() -> str:
 		{wid_debug} /* Debug */ = {{
 			isa = XCBuildConfiguration;
 			buildSettings = {{
-				CODE_SIGN_ENTITLEMENTS = IslandPupWidget/IslandPupWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				INFOPLIST_FILE = IslandPupWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -506,7 +503,6 @@ def generate_pbxproj() -> str:
 		{wid_release} /* Release */ = {{
 			isa = XCBuildConfiguration;
 			buildSettings = {{
-				CODE_SIGN_ENTITLEMENTS = IslandPupWidget/IslandPupWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				INFOPLIST_FILE = IslandPupWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (

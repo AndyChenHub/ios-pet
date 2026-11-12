@@ -27,17 +27,14 @@ targets:
       - path: Shared
         excludes:
           - Resources
-      - path: Shared/Resources/PetTimerGate.ttf
+      - path: Shared/Resources/PetTimerGate-Regular.ttf
         buildPhase: resources
     info:
       path: IslandPup/Info.plist
-    entitlements:
-      path: IslandPup/IslandPup.entitlements
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.islandpup.app
         INFOPLIST_FILE: IslandPup/Info.plist
-        CODE_SIGN_ENTITLEMENTS: IslandPup/IslandPup.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         TARGETED_DEVICE_FAMILY: "1"
@@ -58,17 +55,14 @@ targets:
       - path: Shared
         excludes:
           - Resources
-      - path: Shared/Resources/PetTimerGate.ttf
+      - path: Shared/Resources/PetTimerGate-Regular.ttf
         buildPhase: resources
     info:
       path: IslandPupWidget/Info.plist
-    entitlements:
-      path: IslandPupWidget/IslandPupWidget.entitlements
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.islandpup.app.widget
         INFOPLIST_FILE: IslandPupWidget/Info.plist
-        CODE_SIGN_ENTITLEMENTS: IslandPupWidget/IslandPupWidget.entitlements
         SKIP_INSTALL: YES
         TARGETED_DEVICE_FAMILY: "1"
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"

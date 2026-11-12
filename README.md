@@ -23,7 +23,7 @@
 2. Open the **Actions** tab on GitHub → **Build IslandPup iOS IPA** (`.github/workflows/build-ipa.yml`).
 3. Download the **`IslandPup-iOS-IPA`** artifact (`IslandPup.ipa`).
 4. Install `IslandPup.ipa` onto both iPhones using **SideStore**, **AltStore**, or **Sideloadly** with your Apple ID.
-   - *Note*: Live Activities (`NSSupportsLiveActivities`) use `pushType: nil` and fallback storage so they work out of the box even with free Apple IDs!
+   - *Important for Sideloadly / AltStore*: Leave **"Remove App Extensions (PlugIns)" UNCHECKED** (and click *Keep App Extensions* in AltStore/SideStore) so `IslandPupWidgetExtension` is installed—otherwise iOS cannot render the dog inside the Dynamic Island!
 
 ### Option B: On a Mac with Xcode 15 / 16+
 1. Open `IslandPup.xcodeproj` directly in Xcode (or run `xcodegen generate` if modifying `project.yml`).

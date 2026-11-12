@@ -2,8 +2,7 @@
   "images": [
     {
       "filename": "alfie_idle_0.png",
-      "idiom": "universal",
-      "scale": "3x"
+      "idiom": "universal"
     }
   ],
   "info": {

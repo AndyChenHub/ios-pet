@@ -44,7 +44,7 @@ public struct PetActivityAttributes: ActivityAttributes, Sendable {
                 self.anchorTimestamp = anchorTimestamp
             } else {
                 let now = Date().timeIntervalSince1970
-                self.anchorTimestamp = floor(now / 2.0) * 2.0 - 10.0
+                self.anchorTimestamp = floor(now / 2.0) * 2.0 - 60.0
             }
         }
 
