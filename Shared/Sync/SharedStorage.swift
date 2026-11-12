@@ -1,10 +1,12 @@
 import Foundation
+import Security
 
 /// Persists pet selection and phone-to-phone pairing state across both the App Group
 /// container (when available) and standard UserDefaults (for unsigned/free sideloading).
 public final class SharedStorage: @unchecked Sendable {
     public static let shared = SharedStorage()
     public static let appGroupIdentifier = "group.com.islandpup.shared"
+    public static let defaultRelayURL = "https://ntfy.sh"
 
     private let groupDefaults: UserDefaults?
     private let standardDefaults: UserDefaults
@@ -69,8 +71,8 @@ public final class SharedStorage: @unchecked Sendable {
     public var myName: String {
         get { string(forKey: Keys.myName) ?? "Friend" }
         set {
-            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            setString(trimmed.isEmpty ? "Friend" : String(trimmed.prefix(20)), forKey: Keys.myName)
+            let sanitized = Self.sanitizeDisplayText(newValue, maxLength: 20)
+            setString(sanitized.isEmpty ? "Friend" : sanitized, forKey: Keys.myName)
         }
     }
 
@@ -116,17 +118,8 @@ public final class SharedStorage: @unchecked Sendable {
     }
 
     public var relayBaseURL: String {
-        get {
-            let url = string(forKey: Keys.relayBaseURL) ?? "https://ntfy.sh"
-            let cleaned = url.trimmingCharacters(in: .whitespacesAndNewlines)
-                .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-            return cleaned.isEmpty ? "https://ntfy.sh" : cleaned
-        }
-        set {
-            let cleaned = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-            setString(cleaned.isEmpty ? "https://ntfy.sh" : cleaned, forKey: Keys.relayBaseURL)
-        }
+        get { Self.sanitizeRelayBaseURL(string(forKey: Keys.relayBaseURL) ?? Self.defaultRelayURL) }
+        set { setString(Self.sanitizeRelayBaseURL(newValue), forKey: Keys.relayBaseURL) }
     }
 
     public var partnerName: String? {
@@ -159,17 +152,61 @@ public final class SharedStorage: @unchecked Sendable {
         partnerName = nil
         partnerCharacter = nil
         partnerAction = nil
+        lastAppliedRemoteSentAt = 0
     }
 
-    /// Generates a friendly 6-character alphanumeric pair code (excluding ambiguous 0/O/1/I).
+    /// Generates an 8-character cryptographically random pair code (40 bits of entropy,
+    /// using unambiguous uppercase characters and `SecRandomCopyBytes`).
     public static func generatePairCode() -> String {
         let alphabet = Array("ABCDEFGHJKLMNPQRSTUVWXYZ23456789")
-        return String((0..<6).compactMap { _ in alphabet.randomElement() })
+        var randomBytes = [UInt8](repeating: 0, count: 8)
+        let status = SecRandomCopyBytes(kSecRandomDefault, randomBytes.count, &randomBytes)
+        if status == errSecSuccess {
+            return String(randomBytes.map { alphabet[Int($0) % alphabet.count] })
+        }
+        var rng = SystemRandomNumberGenerator()
+        return String((0..<8).map { _ in alphabet.randomElement(using: &rng)! })
     }
 
     public static func normalizePairCode(_ raw: String) -> String {
-        let allowed = raw.uppercased().filter { $0.isLetter || $0.isNumber }
-        return String(allowed.prefix(12))
+        let allowed = raw.uppercased().filter { $0.isASCII && ($0.isLetter || $0.isNumber) }
+        return String(allowed.prefix(16))
+    }
+
+    /// Strips control characters and enforces a strict character cap on untrusted display strings.
+    public static func sanitizeDisplayText(_ raw: String, maxLength: Int) -> String {
+        let filtered = raw.unicodeScalars.filter { scalar in
+            !CharacterSet.controlCharacters.contains(scalar)
+        }
+        let cleaned = String(String.UnicodeScalarView(filtered))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return String(cleaned.prefix(maxLength))
+    }
+
+    /// Enforces HTTPS (allowing HTTP only for localhost loopback testing) and strips credentials/queries.
+    public static func sanitizeRelayBaseURL(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard var components = URLComponents(string: trimmed),
+              let scheme = components.scheme?.lowercased(),
+              let host = components.host?.lowercased(),
+              !host.isEmpty else {
+            return defaultRelayURL
+        }
+
+        let isLocalhost = (host == "localhost" || host == "127.0.0.1")
+        guard scheme == "https" || (scheme == "http" && isLocalhost) else {
+            return defaultRelayURL
+        }
+
+        components.user = nil
+        components.password = nil
+        components.query = nil
+        components.fragment = nil
+        let cleanPath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        components.path = cleanPath.isEmpty ? "" : "/\(cleanPath)"
+
+        return components.url?.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            ?? defaultRelayURL
     }
 
     /// Builds a current `PetActivityAttributes.ContentState` snapshot from stored state.

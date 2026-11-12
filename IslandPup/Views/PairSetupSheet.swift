@@ -89,7 +89,7 @@ struct PairSetupSheet: View {
                 } label: {
                     HStack {
                         Image(systemName: "sparkles.rectangle.stack.fill")
-                        Text("Generate 6-Digit Pair Code")
+                        Text("Generate 8-Char Pair Code")
                             .fontWeight(.bold)
                         Spacer()
                         Image(systemName: "chevron.right")
@@ -247,7 +247,7 @@ struct PairSetupSheet: View {
                             .fill(.white.opacity(0.08))
                     )
 
-                Text("Uses encrypted SHA-256 room topics over HTTPS/SSE (`https://ntfy.sh` by default, zero signup needed, or point to your own self-hosted ntfy instance).")
+                Text("Uses end-to-end AES-256-GCM encryption over HTTPS/SSE (`https://ntfy.sh` by default, zero signup needed, or point to your own self-hosted HTTPS ntfy instance).")
                     .font(.system(size: 11, design: .rounded))
                     .foregroundStyle(.white.opacity(0.5))
             }

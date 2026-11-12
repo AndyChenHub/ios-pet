@@ -362,12 +362,12 @@
         </div>
         <div class="pair-row">
           <input id="myNameInput" type="text" value="Alex" placeholder="Your name" style="max-width:130px;" />
-          <input id="pairCodeInput" type="text" placeholder="6-char Pair Code (e.g. PAWS42)" style="text-transform:uppercase; font-family:monospace; font-weight:700;" />
+          <input id="pairCodeInput" type="text" placeholder="8-char Pair Code (e.g. PAWS7K9M)" style="text-transform:uppercase; font-family:monospace; font-weight:700;" />
           <button class="btn secondary" onclick="generateCode()">New Code</button>
           <button class="btn" onclick="connectPair()">Link</button>
         </div>
         <div id="partnerStatusLine" style="font-size:12px; color:var(--muted); margin-top:10px;">
-          Uses the exact same SHA-256 room protocol as the iOS app — open in two tabs or pair directly with an iPhone!
+          Uses end-to-end AES-256-GCM encryption matching the iOS app — open in two tabs or pair directly with an iPhone!
         </div>
       </div>
 
@@ -410,7 +410,13 @@
       { key: "dizzy",    title: "Dizzy",      emoji: "😵‍💫", phrase: "did a dramatic sploot", row: 5, cols: [0,1,2,3,4,5,6,7], fps: 7 }
     ];
 
-    const deviceId = "web-" + Math.random().toString(36).slice(2, 10);
+    function randomHexId(bytesLen = 8) {
+      const arr = new Uint8Array(bytesLen);
+      crypto.getRandomValues(arr);
+      return Array.from(arr).map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+
+    const deviceId = "web-" + randomHexId(8);
     let myCharacter = "alfie";
     let myAction = "idle";
     let lastSender = null;
@@ -520,28 +526,68 @@
     }
 
     function normalizeCode(raw) {
-      return (raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
+      return (raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 16);
+    }
+
+    function sanitizeText(raw, maxLen) {
+      return (raw || "").replace(/[\u0000-\u001F\u007F]/g, "").trim().slice(0, maxLen);
     }
 
     function generateCode() {
       const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      const rand = new Uint8Array(8);
+      crypto.getRandomValues(rand);
       let code = "";
-      for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+      for (let i = 0; i < 8; i++) code += chars[rand[i] % chars.length];
       document.getElementById("pairCodeInput").value = code;
       connectPair();
     }
 
     async function deriveTopic(code) {
-      const data = new TextEncoder().encode("islandpup-v1:" + normalizeCode(code));
+      const data = new TextEncoder().encode("islandpup-topic-v2:" + normalizeCode(code));
       const digest = await crypto.subtle.digest("SHA-256", data);
       const hex = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, "0")).join("");
-      return "islandpup-" + hex.slice(0, 20);
+      return "islandpup-" + hex.slice(0, 24);
+    }
+
+    async function deriveAesKey(code) {
+      const data = new TextEncoder().encode("islandpup-aesgcm-v2:" + normalizeCode(code));
+      const keyBytes = await crypto.subtle.digest("SHA-256", data);
+      return crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["encrypt", "decrypt"]);
+    }
+
+    async function encryptWire(payload, code) {
+      const key = await deriveAesKey(code);
+      const nonce = new Uint8Array(12);
+      crypto.getRandomValues(nonce);
+      const plainBytes = new TextEncoder().encode(JSON.stringify(payload));
+      const cipherBuf = await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, key, plainBytes);
+      const combined = new Uint8Array(nonce.length + cipherBuf.byteLength);
+      combined.set(nonce, 0);
+      combined.set(new Uint8Array(cipherBuf), nonce.length);
+      let binary = "";
+      for (let i = 0; i < combined.length; i++) binary += String.fromCharCode(combined[i]);
+      return "v2:" + btoa(binary);
+    }
+
+    async function decryptWire(text, code) {
+      if (typeof text !== "string" || text.length > 2048 || !text.startsWith("v2:")) return null;
+      const binary = atob(text.slice(3));
+      const combined = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) combined[i] = binary.charCodeAt(i);
+      if (combined.length < 29) return null;
+      const nonce = combined.slice(0, 12);
+      const cipherAndTag = combined.slice(12);
+      const key = await deriveAesKey(code);
+      const plainBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv: nonce }, key, cipherAndTag);
+      return JSON.parse(new TextDecoder().decode(plainBuf));
     }
 
     async function connectPair() {
       const raw = document.getElementById("pairCodeInput").value;
       const clean = normalizeCode(raw);
       if (!clean) return;
+      if (clean !== pairCode) lastAppliedSentAt = 0;
       pairCode = clean;
       document.getElementById("pairCodeInput").value = clean;
 
@@ -552,11 +598,12 @@
       setTarget("partner");
 
       eventSource = new EventSource(`https://ntfy.sh/${topic}/sse`);
-      eventSource.onmessage = (ev) => {
+      eventSource.onmessage = async (ev) => {
         try {
+          if (!ev.data || ev.data.length > 4096) return;
           const outer = JSON.parse(ev.data);
-          const wire = JSON.parse(outer.message || ev.data);
-          handleWire(wire);
+          const wire = await decryptWire(outer.message || "", pairCode);
+          if (wire) handleWire(wire);
         } catch (_) {}
       };
       publishStatus();
@@ -565,23 +612,25 @@
     async function postWire(payload) {
       if (!pairCode) return;
       const topic = await deriveTopic(pairCode);
+      const body = await encryptWire(payload, pairCode);
       await fetch(`https://ntfy.sh/${topic}`, {
         method: "POST",
-        body: JSON.stringify(payload)
+        body
       });
     }
 
     async function sendToPartner(actionKey, note = null) {
       partnerAction = actionKey;
       renderActionButtons();
+      const cleanNote = note ? sanitizeText(note, 32) : null;
       await postWire({
         kind: "set_action",
         senderDeviceId: deviceId,
-        senderName: document.getElementById("myNameInput").value.trim() || "Friend",
+        senderName: sanitizeText(document.getElementById("myNameInput").value, 20) || "Friend",
         senderCharacter: myCharacter,
         senderCurrentAction: myAction,
         targetAction: actionKey,
-        note: note,
+        note: cleanNote || null,
         sentAt: Date.now() / 1000
       });
     }
@@ -591,7 +640,7 @@
       await postWire({
         kind: "status",
         senderDeviceId: deviceId,
-        senderName: document.getElementById("myNameInput").value.trim() || "Friend",
+        senderName: sanitizeText(document.getElementById("myNameInput").value, 20) || "Friend",
         senderCharacter: myCharacter,
         senderCurrentAction: myAction,
         sentAt: Date.now() / 1000
@@ -600,16 +649,21 @@
 
     function handleWire(wire) {
       if (!wire || wire.senderDeviceId === deviceId) return;
+      const nowSec = Date.now() / 1000;
+      if (typeof wire.sentAt !== "number" || wire.sentAt > nowSec + 300 || wire.sentAt < nowSec - 86400) return;
+      if (wire.senderCharacter !== "alfie" && wire.senderCharacter !== "teddy") return;
+      const safeSender = sanitizeText(wire.senderName, 20) || "Partner";
       partnerPet = wire.senderCharacter;
       if (wire.kind === "status") {
         partnerAction = wire.senderCurrentAction;
         const pMeta = getActionMeta(partnerAction);
         document.getElementById("partnerStatusLine").textContent =
-          `Linked with ${wire.senderName}'s ${partnerPet === "alfie" ? "Alfie" : "Teddy"} (${pMeta.emoji} ${pMeta.title})`;
+          `Linked with ${safeSender}'s ${partnerPet === "alfie" ? "Alfie" : "Teddy"} (${pMeta.emoji} ${pMeta.title})`;
         renderActionButtons();
       } else if (wire.kind === "set_action" && wire.targetAction && wire.sentAt > lastAppliedSentAt) {
         lastAppliedSentAt = wire.sentAt;
-        applyLocalAction(wire.targetAction, wire.senderName, wire.note || null);
+        const safeNote = wire.note ? sanitizeText(wire.note, 32) : null;
+        applyLocalAction(wire.targetAction, safeSender, safeNote);
       }
     }
 

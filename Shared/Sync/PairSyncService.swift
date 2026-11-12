@@ -3,7 +3,7 @@ import Combine
 import CryptoKit
 import Foundation
 
-/// Wire payload exchanged between two paired iPhones over the relay topic.
+/// End-to-end encrypted wire payload exchanged between two paired iPhones.
 public struct PairWireMessage: Codable, Sendable {
     public enum Kind: String, Codable, Sendable {
         case setAction = "set_action"
@@ -47,11 +47,16 @@ private struct NtfyEnvelope: Decodable {
     let message: String?
 }
 
-/// Coordinates real-time & background pairing between two iPhones so Phone 1 can set
-/// Phone 2's Dynamic Island pet animation (e.g. Sleeping) and vice versa.
+/// Coordinates end-to-end encrypted (`AES-256-GCM`) real-time & background pairing
+/// between two iPhones so Phone 1 can set Phone 2's Dynamic Island pet animation and vice versa.
 @MainActor
 public final class PairSyncService: ObservableObject {
     public static let shared = PairSyncService()
+
+    private static let maxEnvelopeLineBytes = 4096
+    private static let maxCiphertextChars = 2048
+    private static let maxFutureClockSkewSeconds: TimeInterval = 300
+    private static let maxMessageAgeSeconds: TimeInterval = 86_400
 
     public enum ConnectionStatus: Equatable, Sendable {
         case unpaired
@@ -99,15 +104,52 @@ public final class PairSyncService: ObservableObject {
         refreshConnectionBadge()
     }
 
-    // MARK: - Topic Derivation
+    // MARK: - Key Derivation & End-to-End Encryption (AES-256-GCM)
 
-    /// Derives a private SHA-256 topic name from the human-friendly pair code.
+    /// Derives a public routing topic name via domain-separated SHA-256 (decoupled from the encryption key).
     public static func topicName(forPairCode code: String) -> String {
         let normalized = SharedStorage.normalizePairCode(code)
-        let input = Data("islandpup-v1:\(normalized)".utf8)
+        let input = Data("islandpup-topic-v2:\(normalized)".utf8)
         let digest = SHA256.hash(data: input)
         let hex = digest.map { String(format: "%02x", $0) }.joined()
-        return "islandpup-\(hex.prefix(20))"
+        return "islandpup-\(hex.prefix(24))"
+    }
+
+    /// Derives an independent 256-bit AES-GCM key that is never transmitted to the relay server.
+    private static func encryptionKey(forPairCode code: String) -> SymmetricKey {
+        let normalized = SharedStorage.normalizePairCode(code)
+        let input = Data("islandpup-aesgcm-v2:\(normalized)".utf8)
+        let digest = SHA256.hash(data: input)
+        return SymmetricKey(data: Data(digest))
+    }
+
+    /// Encrypts and authenticates `PairWireMessage` using `AES-256-GCM` (`v2:<base64(nonce||ciphertext||tag)>`).
+    public static func encryptWireMessage(_ message: PairWireMessage, pairCode: String) -> Data? {
+        guard let plaintext = try? JSONEncoder().encode(message) else { return nil }
+        let key = encryptionKey(forPairCode: pairCode)
+        guard let sealed = try? AES.GCM.seal(plaintext, using: key),
+              let combined = sealed.combined else {
+            return nil
+        }
+        let encoded = "v2:\(combined.base64EncodedString())"
+        return Data(encoded.utf8)
+    }
+
+    /// Verifies authenticity and decrypts an incoming `v2:<base64>` payload using `AES-256-GCM`.
+    public static func decryptWireMessage(_ text: String, pairCode: String) -> PairWireMessage? {
+        guard text.count <= maxCiphertextChars,
+              text.hasPrefix("v2:") else {
+            return nil
+        }
+        let b64 = String(text.dropFirst(3))
+        guard let combined = Data(base64Encoded: b64) else { return nil }
+        let key = encryptionKey(forPairCode: pairCode)
+        guard let box = try? AES.GCM.SealedBox(combined: combined),
+              let plaintext = try? AES.GCM.open(box, using: key),
+              let wire = try? JSONDecoder().decode(PairWireMessage.self, from: plaintext) else {
+            return nil
+        }
+        return wire
     }
 
     private var activeTopicURLString: String? {
@@ -118,7 +160,6 @@ public final class PairSyncService: ObservableObject {
 
     // MARK: - Local Pet Selection & Actions
 
-    /// Selects which 1 pet runs on this iPhone's Dynamic Island (Alfie or Teddy).
     public func selectCharacter(_ character: PetCharacter) async {
         myCharacter = character
         storage.myCharacter = character
@@ -128,7 +169,6 @@ public final class PairSyncService: ObservableObject {
         }
     }
 
-    /// Sets this phone's own pet animation directly.
     public func setMyOwnAction(_ action: PetAction, note: String? = nil) async {
         myAction = action
         lastSenderName = nil
@@ -230,8 +270,6 @@ public final class PairSyncService: ObservableObject {
 
     // MARK: - Sending Actions to Partner's iPhone
 
-    /// Sends a pet animation command to the paired iPhone so its Dynamic Island pet switches
-    /// to `action` (e.g. `.sleeping`, `.waving`, `.jumping`, `.working`).
     @discardableResult
     public func sendActionToPartner(_ action: PetAction, note: String? = nil) async -> Bool {
         guard storage.isPaired else {
@@ -263,7 +301,6 @@ public final class PairSyncService: ObservableObject {
         return ok
     }
 
-    /// Invoked from `LiveActivityIntent` buttons directly on the Dynamic Island or Lock Screen.
     public func handleDynamicIslandActionTap(_ action: PetAction) async {
         reloadFromStorage()
         if storage.isPaired {
@@ -286,7 +323,7 @@ public final class PairSyncService: ObservableObject {
         _ = await postWireMessage(msg)
     }
 
-    // MARK: - Catch-up Polling (Foreground, BGAppRefresh, LiveActivityIntent)
+    // MARK: - Catch-up Polling
 
     public func pollLatestMessages() async {
         reloadFromStorage()
@@ -301,6 +338,7 @@ public final class PairSyncService: ObservableObject {
             request.cachePolicy = .reloadIgnoringLocalCacheData
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+                  data.count <= 262_144,
                   let text = String(data: data, encoding: .utf8) else {
                 return
             }
@@ -326,12 +364,13 @@ public final class PairSyncService: ObservableObject {
         }
     }
 
-    // MARK: - Internal Networking & Decoding
+    // MARK: - Internal Networking & Authenticated Decryption
 
     private func postWireMessage(_ message: PairWireMessage) async -> Bool {
-        guard let base = activeTopicURLString,
+        guard !pairCode.isEmpty,
+              let base = activeTopicURLString,
               let url = URL(string: base),
-              let encoded = try? JSONEncoder().encode(message) else {
+              let encryptedBody = Self.encryptWireMessage(message, pairCode: pairCode) else {
             return false
         }
 
@@ -339,7 +378,7 @@ public final class PairSyncService: ObservableObject {
         request.httpMethod = "POST"
         request.timeoutInterval = 8
         request.setValue("text/plain; charset=utf-8", forHTTPHeaderField: "Content-Type")
-        request.httpBody = encoded
+        request.httpBody = encryptedBody
 
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
@@ -361,24 +400,36 @@ public final class PairSyncService: ObservableObject {
 
     @discardableResult
     private func processEnvelopeJSONLine(_ line: String, notifyAckImmediately: Bool) async -> Bool {
-        guard let lineData = line.data(using: .utf8),
+        guard !pairCode.isEmpty,
+              line.utf8.count <= Self.maxEnvelopeLineBytes,
+              let lineData = line.data(using: .utf8),
               let envelope = try? JSONDecoder().decode(NtfyEnvelope.self, from: lineData),
               envelope.event == "message",
               let inner = envelope.message,
-              let innerData = inner.data(using: .utf8),
-              let wire = try? JSONDecoder().decode(PairWireMessage.self, from: innerData) else {
+              let wire = Self.decryptWireMessage(inner, pairCode: pairCode) else {
             return false
         }
 
-        // Ignore our own outbound messages
-        guard wire.senderDeviceId != storage.deviceId else {
+        // Ignore our own outbound messages and validate senderDeviceId length
+        let cleanSenderId = String(wire.senderDeviceId.prefix(64))
+        guard !cleanSenderId.isEmpty, cleanSenderId != storage.deviceId else {
             return false
         }
 
-        // Update partner profile metadata
-        partnerName = wire.senderName
+        // Reject replayed stale messages or far-future clock-skew timestamps
+        let now = Date().timeIntervalSince1970
+        guard wire.sentAt <= now + Self.maxFutureClockSkewSeconds,
+              wire.sentAt >= now - Self.maxMessageAgeSeconds else {
+            return false
+        }
+
+        // Sanitize untrusted display strings before persisting or passing to ActivityKit
+        let rawCleanName = SharedStorage.sanitizeDisplayText(wire.senderName, maxLength: 20)
+        let safeSenderName = rawCleanName.isEmpty ? "Partner" : rawCleanName
+
+        partnerName = safeSenderName
         partnerCharacter = wire.senderCharacter
-        storage.partnerName = wire.senderName
+        storage.partnerName = safeSenderName
         storage.partnerCharacter = wire.senderCharacter
 
         if wire.kind == .status {
@@ -395,16 +446,16 @@ public final class PairSyncService: ObservableObject {
             storage.lastAppliedRemoteSentAt = wire.sentAt
 
             myAction = incomingAction
-            lastSenderName = wire.senderName
+            lastSenderName = safeSenderName
             let cleanNote = Self.cleanOptionalNote(wire.note)
             lastNote = cleanNote
 
             storage.myAction = incomingAction
-            storage.lastSenderName = wire.senderName
+            storage.lastSenderName = safeSenderName
             storage.lastNote = cleanNote
 
             refreshConnectionBadge(connected: true)
-            showToast("\(wire.senderName) set \(myCharacter.displayName) to \(incomingAction.title) \(incomingAction.emoji)")
+            showToast("\(safeSenderName) set \(myCharacter.displayName) to \(incomingAction.title) \(incomingAction.emoji)")
 
             if notifyAckImmediately {
                 await publishStatus()
@@ -445,8 +496,8 @@ public final class PairSyncService: ObservableObject {
 
     private static func cleanOptionalNote(_ raw: String?) -> String? {
         guard let raw else { return nil }
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : String(trimmed.prefix(32))
+        let cleaned = SharedStorage.sanitizeDisplayText(raw, maxLength: 32)
+        return cleaned.isEmpty ? nil : cleaned
     }
 
     // MARK: - Live Activity Sync

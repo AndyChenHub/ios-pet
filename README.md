@@ -8,11 +8,11 @@
 
 - **1 Active Pet on Your Dynamic Island**: Pick either **Alfie** or **Teddy** at any time—renders in full color across **Compact**, **Minimal**, **Expanded Dynamic Island**, and **Lock Screen** Live Activity views.
 - **Zero-Battery Continuous Dynamic Island Animation**: Uses a custom 1.3 KB OpenType GSUB gate font (`Shared/Resources/PetTimerGate.ttf`) combined with dual fractional `Text(..., style: .timer)` masks so all 10 animations loop smoothly on the Dynamic Island & Lock Screen using 100% public Apple APIs and zero background CPU drain (automatically settling into a peaceful static pose on Always-On Display).
-- **Phone-to-Phone Remote Pet Control**:
-  - Generate a 6-character **Pair Code** on Phone 1 and enter it on Phone 2 (zero account signup or backend configuration needed).
+- **Phone-to-Phone Remote Pet Control (End-to-End Encrypted)**:
+  - Generate an 8-character **Pair Code** on Phone 1 and enter it on Phone 2 (messages are end-to-end encrypted & authenticated with `AES-256-GCM` over HTTPS; zero account signup or backend configuration needed).
   - Tap any of the **10 animations** (`Idle`, `Sleeping`, `Waving`, `Jumping`, `Trot Right`, `Trot Left`, `Waiting`, `Working`, `Reading`, `Dizzy`) + optional short note to update the other phone's Dynamic Island pet!
   - Long-press your Dynamic Island (`Expanded` view) to send `💤 Sleep`, `👋 Wave`, `🎉 Jump`, or `💻 Work` to your partner's Island without even opening the app (`LiveActivityIntent`).
-- **Desktop / Browser Companion (`WebCompanion/index.html`)**: Preview Alfie & Teddy inside an interactive Dynamic Island simulator right on Windows/macOS, or enter the same 6-character Pair Code to test remote pairing directly with an iPhone!
+- **Desktop / Browser Companion (`WebCompanion/index.html`)**: Preview Alfie & Teddy inside an interactive Dynamic Island simulator right on Windows/macOS, or enter the same 8-character Pair Code to test remote pairing directly with an iPhone!
 
 ---
 
