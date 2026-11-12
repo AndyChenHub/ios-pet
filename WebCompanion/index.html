@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IslandPup — Dynamic Island Pet Simulator & Pair Companion</title>
+  <style>
+    :root {
+      --bg: #0b0d16;
+      --card: rgba(255, 255, 255, 0.06);
+      --border: rgba(255, 255, 255, 0.11);
+      --text: #f5f7ff;
+      --muted: rgba(245, 247, 255, 0.6);
+      --accent: #ff7a59;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "Segoe UI", Roboto, sans-serif;
+      background: radial-gradient(circle at 50% 0%, #1b2038 0%, var(--bg) 62%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px 16px 56px;
+    }
+    .wrap {
+      max-width: 960px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+    @media (max-width: 820px) {
+      .wrap { grid-template-columns: 1fr; }
+    }
+    /* Simulated iPhone bezel + Dynamic Island */
+    .iphone-frame {
+      background: linear-gradient(165deg, #242942 0%, #121525 55%, #0d101c 100%);
+      border: 4px solid #2e334d;
+      border-radius: 52px;
+      padding: 16px 18px 28px;
+      box-shadow: 0 26px 60px rgba(0, 0, 0, 0.65);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 520px;
+      position: relative;
+      overflow: hidden;
+    }
+    .wallpaper-glow {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 30% 18%, rgba(255, 122, 89, 0.25), transparent 50%),
+        radial-gradient(circle at 75% 28%, rgba(124, 148, 255, 0.24), transparent 52%);
+      pointer-events: none;
+    }
+    .island {
+      position: relative;
+      z-index: 2;
+      background: #000;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.72);
+      transition: all 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+      cursor: pointer;
+      user-select: none;
+    }
+    .island.compact {
+      border-radius: 999px;
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .island.expanded {
+      width: 100%;
+      border-radius: 34px;
+      padding: 14px 16px;
+    }
+    .camera-dot {
+      width: 68px;
+      height: 18px;
+      background: #0e111a;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 5px;
+    }
+    .camera-dot::after {
+      content: "";
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #3b5bdb 20%, #121c3d 80%);
+    }
+    .expanded-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .pet-halo {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: rgba(255, 122, 89, 0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .zzz-badge {
+      position: absolute;
+      top: 0;
+      right: -2px;
+      font-size: 12px;
+      font-weight: 800;
+      color: #c2b8ff;
+    }
+    .quick-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-top: 12px;
+    }
+    .quick-btn {
+      background: rgba(255, 255, 255, 0.13);
+      border: none;
+      color: #fff;
+      border-radius: 10px;
+      padding: 6px 4px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .quick-btn:hover { background: rgba(255, 255, 255, 0.22); }
+    .lock-clock {
+      position: relative;
+      z-index: 1;
+      margin-top: 38px;
+      text-align: center;
+    }
+    .lock-clock .time {
+      font-size: 64px;
+      font-weight: 800;
+      letter-spacing: -2px;
+      line-height: 1;
+      opacity: 0.9;
+    }
+    .lock-clock .date {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .mode-hint {
+      margin-top: auto;
+      z-index: 2;
+      font-size: 12px;
+      color: var(--muted);
+      background: rgba(0, 0, 0, 0.35);
+      padding: 8px 14px;
+      border-radius: 999px;
+    }
+    /* Controls column */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+    .section-label {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin: 0 0 10px;
+    }
+    .pet-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .pet-choice {
+      background: rgba(255, 255, 255, 0.05);
+      border: 2px solid transparent;
+      border-radius: 16px;
+      padding: 12px;
+      color: var(--text);
+      cursor: pointer;
+      text-align: left;
+      transition: 0.15s;
+    }
+    .pet-choice.active {
+      border-color: var(--accent);
+      background: rgba(255, 122, 89, 0.14);
+    }
+    .pair-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    input[type="text"] {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border);
+      color: #fff;
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 14px;
+      flex: 1;
+      min-width: 130px;
+    }
+    .btn {
+      background: #fff;
+      color: #000;
+      border: none;
+      border-radius: 12px;
+      padding: 10px 15px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .btn.secondary {
+      background: rgba(255, 255, 255, 0.13);
+      color: #fff;
+    }
+    .actions-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .act-btn {
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid var(--border);
+      color: #fff;
+      border-radius: 14px;
+      padding: 10px 12px;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .act-btn.active {
+      border-color: #7c94ff;
+      background: rgba(124, 148, 255, 0.22);
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.1);
+    }
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #888;
+    }
+    .dot.live { background: #38d9a9; }
+    .segmented {
+      display: inline-flex;
+      background: rgba(255, 255, 255, 0.09);
+      border-radius: 10px;
+      padding: 3px;
+    }
+    .segmented button {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .segmented button.active {
+      background: #fff;
+      color: #000;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <!-- Left: Interactive iPhone Dynamic Island Preview -->
+    <div class="iphone-frame">
+      <div class="wallpaper-glow"></div>
+
+      <div id="islandBox" class="island expanded" title="Click to toggle Compact / Expanded Dynamic Island">
+        <div id="compactView" style="display:none; align-items:center; gap:14px;">
+          <canvas id="compactCanvas" width="192" height="208" style="width:30px;height:32px;"></canvas>
+          <div class="camera-dot"></div>
+          <span id="compactEmoji" style="font-size:15px;">😊</span>
+        </div>
+
+        <div id="expandedView">
+          <div class="expanded-row">
+            <div class="pet-halo">
+              <canvas id="expandedCanvas" width="192" height="208" style="width:64px;height:69px;"></canvas>
+              <span id="zzzBadge" class="zzz-badge" style="display:none;">zZz</span>
+            </div>
+            <div style="flex:1; min-width:0;">
+              <div id="islandTitle" style="font-weight:800; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                Alfie is hanging out
+              </div>
+              <div id="islandSub" style="font-size:11px; color:rgba(255,255,255,0.7); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                Chibi Terrier Pup
+              </div>
+            </div>
+            <div id="islandBadge" style="font-size:11px; font-weight:700; background:rgba(255,255,255,0.14); padding:4px 8px; border-radius:999px;">
+              😊 Idle
+            </div>
+          </div>
+
+          <div class="quick-bar" onclick="event.stopPropagation()">
+            <button class="quick-btn" onclick="quickIslandTap('sleeping')">💤 Sleep</button>
+            <button class="quick-btn" onclick="quickIslandTap('waving')">👋 Wave</button>
+            <button class="quick-btn" onclick="quickIslandTap('jumping')">🎉 Jump</button>
+            <button class="quick-btn" onclick="quickIslandTap('working')">💻 Work</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="lock-clock">
+        <div class="date">Thursday, Nov 12</div>
+        <div class="time">9:41</div>
+      </div>
+
+      <div class="mode-hint">Click the Dynamic Island pill above to toggle Compact ↔ Expanded</div>
+    </div>
+
+    <!-- Right: Pet Picker, Two-Phone Pairing & Remote Action Deck -->
+    <div>
+      <div class="card">
+        <div class="section-label">1. My Active Island Pet (1 at a time)</div>
+        <div class="pet-grid">
+          <button id="petAlfie" class="pet-choice active" onclick="selectPet('alfie')">
+            <div style="font-weight:800; font-size:15px;">🐶 Alfie</div>
+            <div style="font-size:12px; color:var(--muted); margin-top:2px;">Chibi Terrier Pup</div>
+          </button>
+          <button id="petTeddy" class="pet-choice" onclick="selectPet('teddy')">
+            <div style="font-weight:800; font-size:15px;">🐾 Teddy</div>
+            <div style="font-size:12px; color:var(--muted); margin-top:2px;">Scruffy Schnauzer Pup</div>
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <div class="section-label" style="margin:0;">2. Pair with iPhone (or 2nd Tab)</div>
+          <span class="status-pill"><span id="connDot" class="dot"></span><span id="connText">Unpaired</span></span>
+        </div>
+        <div class="pair-row">
+          <input id="myNameInput" type="text" value="Alex" placeholder="Your name" style="max-width:130px;" />
+          <input id="pairCodeInput" type="text" placeholder="6-char Pair Code (e.g. PAWS42)" style="text-transform:uppercase; font-family:monospace; font-weight:700;" />
+          <button class="btn secondary" onclick="generateCode()">New Code</button>
+          <button class="btn" onclick="connectPair()">Link</button>
+        </div>
+        <div id="partnerStatusLine" style="font-size:12px; color:var(--muted); margin-top:10px;">
+          Uses the exact same SHA-256 room protocol as the iOS app — open in two tabs or pair directly with an iPhone!
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <div class="section-label" style="margin:0;">3. Set Pet Action</div>
+          <div class="segmented">
+            <button id="targetPartnerBtn" onclick="setTarget('partner')">Partner's Phone</button>
+            <button id="targetMineBtn" class="active" onclick="setTarget('mine')">My Island</button>
+          </div>
+        </div>
+
+        <div class="pair-row" style="margin-top:10px;">
+          <input id="noteInput" type="text" placeholder="Optional note (e.g. Time for sleep! 🌙)" />
+        </div>
+
+        <div id="actionsGrid" class="actions-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SHEETS = {
+      alfie: new Image(),
+      teddy: new Image()
+    };
+    SHEETS.alfie.src = "../Sprites/Alfie/spritesheet.png";
+    SHEETS.teddy.src = "../Sprites/Teddy/spritesheet.png";
+
+    const ACTIONS = [
+      { key: "idle",     title: "Idle",       emoji: "😊", phrase: "is hanging out",       row: 0, cols: [0,1,2,3,4,5], fps: 6 },
+      { key: "sleeping", title: "Sleeping",   emoji: "💤", phrase: "is fast asleep",       row: 5, cols: [5,7,6,7],     fps: 2.2 },
+      { key: "waving",   title: "Waving",     emoji: "👋", phrase: "is waving hi!",        row: 3, cols: [0,1,2,3],     fps: 6 },
+      { key: "jumping",  title: "Jumping",    emoji: "🎉", phrase: "is jumping for joy!",  row: 4, cols: [0,1,2,3,4],   fps: 7 },
+      { key: "runRight", title: "Trot Right", emoji: "🐾", phrase: "is trotting along",    row: 1, cols: [0,1,2,3,4,5,6,7], fps: 8 },
+      { key: "runLeft",  title: "Trot Left",  emoji: "🐾", phrase: "is zoomie-running",    row: 2, cols: [0,1,2,3,4,5,6,7], fps: 8 },
+      { key: "waiting",  title: "Waiting",    emoji: "❓", phrase: "is waiting for you",   row: 6, cols: [0,1,2,3,4,5], fps: 6 },
+      { key: "working",  title: "Working",    emoji: "💻", phrase: "is locked in working", row: 7, cols: [0,1,2,3,4,5], fps: 7 },
+      { key: "review",   title: "Reading",    emoji: "🔍", phrase: "is inspecting closely",row: 8, cols: [0,1,2,3,4,5], fps: 6 },
+      { key: "dizzy",    title: "Dizzy",      emoji: "😵‍💫", phrase: "did a dramatic sploot", row: 5, cols: [0,1,2,3,4,5,6,7], fps: 7 }
+    ];
+
+    const deviceId = "web-" + Math.random().toString(36).slice(2, 10);
+    let myCharacter = "alfie";
+    let myAction = "idle";
+    let lastSender = null;
+    let lastNote = null;
+    let controlTarget = "mine";
+    let pairCode = "";
+    let partnerAction = null;
+    let partnerPet = null;
+    let lastAppliedSentAt = 0;
+    let eventSource = null;
+    let isExpanded = true;
+
+    const islandBox = document.getElementById("islandBox");
+    const compactView = document.getElementById("compactView");
+    const expandedView = document.getElementById("expandedView");
+    const compactCtx = document.getElementById("compactCanvas").getContext("2d");
+    const expandedCtx = document.getElementById("expandedCanvas").getContext("2d");
+
+    islandBox.addEventListener("click", () => {
+      isExpanded = !isExpanded;
+      islandBox.className = "island " + (isExpanded ? "expanded" : "compact");
+      expandedView.style.display = isExpanded ? "block" : "none";
+      compactView.style.display = isExpanded ? "none" : "flex";
+    });
+
+    function getActionMeta(key) {
+      return ACTIONS.find(a => a.key === key) || ACTIONS[0];
+    }
+
+    function renderActionButtons() {
+      const grid = document.getElementById("actionsGrid");
+      grid.innerHTML = "";
+      ACTIONS.forEach(a => {
+        const activeKey = controlTarget === "partner" ? partnerAction : myAction;
+        const btn = document.createElement("button");
+        btn.className = "act-btn" + (activeKey === a.key ? " active" : "");
+        btn.innerHTML = `<span>${a.emoji} ${a.title}</span><span style="font-size:11px;color:var(--muted);">${controlTarget === "partner" ? "Send →" : "Local"}</span>`;
+        btn.onclick = () => triggerAction(a.key);
+        grid.appendChild(btn);
+      });
+    }
+
+    function updateIslandHeader() {
+      const meta = getActionMeta(myAction);
+      const petName = myCharacter === "alfie" ? "Alfie" : "Teddy";
+      const breed = myCharacter === "alfie" ? "Chibi Terrier Pup" : "Scruffy Schnauzer Pup";
+      document.getElementById("islandTitle").textContent = `${petName} ${meta.phrase}`;
+      document.getElementById("islandBadge").textContent = `${meta.emoji} ${meta.title}`;
+      document.getElementById("compactEmoji").textContent = meta.emoji;
+      document.getElementById("zzzBadge").style.display = myAction === "sleeping" ? "block" : "none";
+
+      if (lastSender && lastNote) {
+        document.getElementById("islandSub").textContent = `${lastSender}: “${lastNote}”`;
+      } else if (lastSender) {
+        document.getElementById("islandSub").textContent = `Set by ${lastSender}`;
+      } else if (lastNote) {
+        document.getElementById("islandSub").textContent = `“${lastNote}”`;
+      } else {
+        document.getElementById("islandSub").textContent = breed;
+      }
+    }
+
+    function selectPet(pet) {
+      myCharacter = pet;
+      document.getElementById("petAlfie").classList.toggle("active", pet === "alfie");
+      document.getElementById("petTeddy").classList.toggle("active", pet === "teddy");
+      updateIslandHeader();
+      publishStatus();
+    }
+
+    function setTarget(target) {
+      controlTarget = target;
+      document.getElementById("targetPartnerBtn").classList.toggle("active", target === "partner");
+      document.getElementById("targetMineBtn").classList.toggle("active", target === "mine");
+      renderActionButtons();
+    }
+
+    function quickIslandTap(actionKey) {
+      if (pairCode) {
+        sendToPartner(actionKey);
+      } else {
+        applyLocalAction(actionKey, null, null);
+      }
+    }
+
+    function triggerAction(actionKey) {
+      const note = document.getElementById("noteInput").value.trim() || null;
+      if (controlTarget === "partner") {
+        if (!pairCode) {
+          alert("Enter or generate a 6-character Pair Code first, or switch to 'My Island'!");
+          return;
+        }
+        sendToPartner(actionKey, note);
+      } else {
+        applyLocalAction(actionKey, null, note);
+      }
+    }
+
+    function applyLocalAction(actionKey, sender, note) {
+      myAction = actionKey;
+      lastSender = sender;
+      lastNote = note;
+      frameCursor = 0;
+      updateIslandHeader();
+      renderActionButtons();
+      publishStatus();
+    }
+
+    function normalizeCode(raw) {
+      return (raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
+    }
+
+    function generateCode() {
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let code = "";
+      for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+      document.getElementById("pairCodeInput").value = code;
+      connectPair();
+    }
+
+    async function deriveTopic(code) {
+      const data = new TextEncoder().encode("islandpup-v1:" + normalizeCode(code));
+      const digest = await crypto.subtle.digest("SHA-256", data);
+      const hex = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, "0")).join("");
+      return "islandpup-" + hex.slice(0, 20);
+    }
+
+    async function connectPair() {
+      const raw = document.getElementById("pairCodeInput").value;
+      const clean = normalizeCode(raw);
+      if (!clean) return;
+      pairCode = clean;
+      document.getElementById("pairCodeInput").value = clean;
+
+      if (eventSource) eventSource.close();
+      const topic = await deriveTopic(clean);
+      document.getElementById("connDot").className = "dot live";
+      document.getElementById("connText").textContent = "Room " + clean;
+      setTarget("partner");
+
+      eventSource = new EventSource(`https://ntfy.sh/${topic}/sse`);
+      eventSource.onmessage = (ev) => {
+        try {
+          const outer = JSON.parse(ev.data);
+          const wire = JSON.parse(outer.message || ev.data);
+          handleWire(wire);
+        } catch (_) {}
+      };
+      publishStatus();
+    }
+
+    async function postWire(payload) {
+      if (!pairCode) return;
+      const topic = await deriveTopic(pairCode);
+      await fetch(`https://ntfy.sh/${topic}`, {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+    }
+
+    async function sendToPartner(actionKey, note = null) {
+      partnerAction = actionKey;
+      renderActionButtons();
+      await postWire({
+        kind: "set_action",
+        senderDeviceId: deviceId,
+        senderName: document.getElementById("myNameInput").value.trim() || "Friend",
+        senderCharacter: myCharacter,
+        senderCurrentAction: myAction,
+        targetAction: actionKey,
+        note: note,
+        sentAt: Date.now() / 1000
+      });
+    }
+
+    async function publishStatus() {
+      if (!pairCode) return;
+      await postWire({
+        kind: "status",
+        senderDeviceId: deviceId,
+        senderName: document.getElementById("myNameInput").value.trim() || "Friend",
+        senderCharacter: myCharacter,
+        senderCurrentAction: myAction,
+        sentAt: Date.now() / 1000
+      });
+    }
+
+    function handleWire(wire) {
+      if (!wire || wire.senderDeviceId === deviceId) return;
+      partnerPet = wire.senderCharacter;
+      if (wire.kind === "status") {
+        partnerAction = wire.senderCurrentAction;
+        const pMeta = getActionMeta(partnerAction);
+        document.getElementById("partnerStatusLine").textContent =
+          `Linked with ${wire.senderName}'s ${partnerPet === "alfie" ? "Alfie" : "Teddy"} (${pMeta.emoji} ${pMeta.title})`;
+        renderActionButtons();
+      } else if (wire.kind === "set_action" && wire.targetAction && wire.sentAt > lastAppliedSentAt) {
+        lastAppliedSentAt = wire.sentAt;
+        applyLocalAction(wire.targetAction, wire.senderName, wire.note || null);
+      }
+    }
+
+    let frameCursor = 0;
+    let lastFrameTime = 0;
+    function animate(ts) {
+      const meta = getActionMeta(myAction);
+      const interval = 1000 / meta.fps;
+      if (ts - lastFrameTime >= interval) {
+        lastFrameTime = ts;
+        const sheet = SHEETS[myCharacter];
+        if (sheet && sheet.complete && sheet.naturalWidth) {
+          const col = meta.cols[frameCursor % meta.cols.length];
+          compactCtx.clearRect(0, 0, 192, 208);
+          compactCtx.drawImage(sheet, col * 192, meta.row * 208, 192, 208, 0, 0, 192, 208);
+          expandedCtx.clearRect(0, 0, 192, 208);
+          expandedCtx.drawImage(sheet, col * 192, meta.row * 208, 192, 208, 0, 0, 192, 208);
+          frameCursor = (frameCursor + 1) % meta.cols.length;
+        }
+      }
+      requestAnimationFrame(animate);
+    }
+
+    updateIslandHeader();
+    renderActionButtons();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

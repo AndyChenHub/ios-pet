@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+</head>
+<body class="bg-transparent text-[var(--foreground)] antialiased p-3">
+  <div class="bg-[var(--card)] text-[var(--foreground)] border border-[var(--border)] rounded-xl p-4 shadow-sm">
+    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+      <div>
+        <h2 class="text-[var(--foreground)] font-semibold text-base">Live GPT Pet Sprite Previewer</h2>
+        <p class="text-[var(--muted-foreground)] text-xs">1536×1872 RGBA · 8×9 Grid · 192×208 px per cell</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="bgBtn" type="button" class="px-2.5 py-1 rounded-md text-xs border border-[var(--border)] bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition">
+          Stage: Checker
+        </button>
+        <label class="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]">
+          <span>FPS</span>
+          <input id="fpsRange" type="range" min="4" max="14" value="8" class="w-16 accent-[var(--primary)]" />
+          <span id="fpsVal" class="font-mono text-xs text-[var(--foreground)] w-4">8</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
+      <div class="sm:col-span-5 flex flex-col items-center">
+        <div id="stageWrap" class="w-full flex items-center justify-center rounded-lg border border-[var(--border)] overflow-hidden py-2" style="background-image: conic-gradient(rgba(128,128,128,0.14) 25%, transparent 0 50%, rgba(128,128,128,0.14) 0 75%, transparent 0); background-size: 20px 20px;">
+          <canvas id="petCanvas" width="192" height="208" class="w-[168px] h-[182px]"></canvas>
+        </div>
+        <div id="frameInfo" class="mt-2 text-xs text-[var(--muted-foreground)] font-mono">
+          Row 1 (idle) · Frame 1/6
+        </div>
+      </div>
+
+      <div class="sm:col-span-7 flex flex-col gap-2">
+        <div id="stateGrid" class="grid grid-cols-3 gap-1.5"></div>
+        <div id="stateDesc" class="mt-1 text-xs text-[var(--muted-foreground)] bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2">
+          Default resting state when ChatGPT / Codex is idle.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SPRITE_SRC = "./spritesheet.png";
+    const STATES = [
+      { row: 0, key: "idle", label: "1. Idle", frames: 6, desc: "Resting loop: gentle breathing, ear perks, blink & happy smile." },
+      { row: 1, key: "running-right", label: "2. Run Right", frames: 8, desc: "Horizontal movement trotting cheerfully to the right." },
+      { row: 2, key: "running-left", label: "3. Run Left", frames: 8, desc: "Horizontal movement trotting cheerfully to the left." },
+      { row: 3, key: "waving", label: "4. Waving", frames: 4, desc: "Greeting gesture lifting front white paw with a wink." },
+      { row: 4, key: "jumping", label: "5. Jumping", frames: 5, desc: "Celebratory leap when tasks succeed or on interaction." },
+      { row: 5, key: "failed", label: "6. Failed", frames: 8, desc: "Error reaction: startled '!', dizzy swirls, and cute belly sploot." },
+      { row: 6, key: "waiting", label: "7. Waiting", frames: 6, desc: "Crossed front paws (from reference photo!) tilting head with '?'." },
+      { row: 7, key: "running", label: "8. Working", frames: 6, desc: "Active agent task loop: focused paws typing on a mini laptop." },
+      { row: 8, key: "review", label: "9. Review", frames: 6, desc: "Task complete: wearing round glasses & inspecting with magnifier." }
+    ];
+
+    const canvas = document.getElementById("petCanvas");
+    const ctx = canvas.getContext("2d");
+    const stateGrid = document.getElementById("stateGrid");
+    const stateDesc = document.getElementById("stateDesc");
+    const frameInfo = document.getElementById("frameInfo");
+    const fpsRange = document.getElementById("fpsRange");
+    const fpsVal = document.getElementById("fpsVal");
+    const bgBtn = document.getElementById("bgBtn");
+    const stageWrap = document.getElementById("stageWrap");
+
+    let activeIdx = 0;
+    let frame = 0;
+    let fps = 8;
+    let lastTick = 0;
+    let stageMode = 0;
+
+    const sheet = new Image();
+    sheet.src = SPRITE_SRC;
+
+    function renderButtons() {
+      stateGrid.innerHTML = "";
+      STATES.forEach((st, idx) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        const active = idx === activeIdx;
+        btn.className = active
+          ? "px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[var(--primary)] text-[var(--primary-foreground)] shadow-sm transition text-left"
+          : "px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[var(--secondary)] text-[var(--secondary-foreground)] border border-[var(--border)] hover:opacity-90 transition text-left";
+        btn.textContent = st.label;
+        btn.onclick = () => {
+          activeIdx = idx;
+          frame = 0;
+          stateDesc.textContent = st.desc;
+          renderButtons();
+          drawFrame();
+        };
+        stateGrid.appendChild(btn);
+      });
+    }
+
+    bgBtn.onclick = () => {
+      stageMode = (stageMode + 1) % 3;
+      if (stageMode === 0) {
+        bgBtn.textContent = "Stage: Checker";
+        stageWrap.style.background = "";
+        stageWrap.style.backgroundImage = "conic-gradient(rgba(128,128,128,0.14) 25%, transparent 0 50%, rgba(128,128,128,0.14) 0 75%, transparent 0)";
+        stageWrap.style.backgroundSize = "20px 20px";
+      } else if (stageMode === 1) {
+        bgBtn.textContent = "Stage: Dark";
+        stageWrap.style.backgroundImage = "none";
+        stageWrap.style.backgroundColor = "#181a22";
+      } else {
+        bgBtn.textContent = "Stage: Light";
+        stageWrap.style.backgroundImage = "none";
+        stageWrap.style.backgroundColor = "#f4f5f8";
+      }
+    };
+
+    fpsRange.oninput = (e) => {
+      fps = Number(e.target.value);
+      fpsVal.textContent = String(fps);
+    };
+
+    function drawFrame() {
+      if (!sheet.complete || !sheet.naturalWidth) return;
+      const st = STATES[activeIdx];
+      ctx.clearRect(0, 0, 192, 208);
+      ctx.drawImage(sheet, frame * 192, st.row * 208, 192, 208, 0, 0, 192, 208);
+      frameInfo.textContent = `Row ${st.row + 1} (${st.key}) · Frame ${frame + 1}/${st.frames}`;
+    }
+
+    function loop(ts) {
+      if (ts - lastTick >= 1000 / fps) {
+        lastTick = ts;
+        const st = STATES[activeIdx];
+        drawFrame();
+        frame = (frame + 1) % st.frames;
+      }
+      requestAnimationFrame(loop);
+    }
+
+    sheet.onload = () => {
+      drawFrame();
+      requestAnimationFrame(loop);
+    };
+    renderButtons();
+  </script>
+</body>
+</html>

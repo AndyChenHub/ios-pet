@@ -1,0 +1,460 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		F57594AE5F82CC08FACE0B18 /* PetModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BFA25FABE811DFAA9A60463 /* PetModels.swift */; };
+		A6A55B405EA0EA1A7700FB00 /* PetModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BFA25FABE811DFAA9A60463 /* PetModels.swift */; };
+		D3D1BEE76BF6C1A190D9B9ED /* PetActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 907568B3E18A337CFD99C10A /* PetActivityAttributes.swift */; };
+		73023C5727E50CE5F55B2CF2 /* PetActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 907568B3E18A337CFD99C10A /* PetActivityAttributes.swift */; };
+		4C8687F828C387521A505688 /* AnimatedPetSpriteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88EDA62732103496F8C9CB50 /* AnimatedPetSpriteView.swift */; };
+		2A41EC1AF4A2D99C39EE7F02 /* AnimatedPetSpriteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88EDA62732103496F8C9CB50 /* AnimatedPetSpriteView.swift */; };
+		9A80B16E0FA9EB6288D795DB /* SharedStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3901C2E0C926BFE6FAFCFD45 /* SharedStorage.swift */; };
+		98D20C741B63BCD2C7BF69EC /* SharedStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3901C2E0C926BFE6FAFCFD45 /* SharedStorage.swift */; };
+		FA13584E23921FD6CC36175D /* PairSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6722D94416DB3EB05B0F4F11 /* PairSyncService.swift */; };
+		B71471BFF70398F8625847C9 /* PairSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6722D94416DB3EB05B0F4F11 /* PairSyncService.swift */; };
+		4F727ACF99B7E5FC4E0738AD /* PetLiveActivityIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F0C5EAB513535110889F86E /* PetLiveActivityIntents.swift */; };
+		059B84DA441B72921D79EC23 /* PetLiveActivityIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F0C5EAB513535110889F86E /* PetLiveActivityIntents.swift */; };
+		7179CE2F08E1B61916801F1E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D9A9320A152F13731C1D78D8 /* Assets.xcassets */; };
+		C2E3EDE222D71C6CFC229C41 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D9A9320A152F13731C1D78D8 /* Assets.xcassets */; };
+		F351AECD73649DC48ABD5463 /* PetTimerGate.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C07CD661A70B47F80BFB0D56 /* PetTimerGate.ttf */; };
+		5859BD0456154FF4C3DFFDF4 /* PetTimerGate.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C07CD661A70B47F80BFB0D56 /* PetTimerGate.ttf */; };
+		101CD7379342363243462915 /* IslandPupApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C74E7ADDC6CD7D9958CD3F5 /* IslandPupApp.swift */; };
+		C325C661AF5B0A29B4FD70E3 /* LiveActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F12B26D7CDBCB4E4BAA40791 /* LiveActivityController.swift */; };
+		38BC6D372DE75ECD1E146C7D /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 559FFF73073594B7925314E8 /* ContentView.swift */; };
+		701B47E9A40863D1719C016B /* DynamicIslandPreviewBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44C101EBA75AF9B25C0520FD /* DynamicIslandPreviewBar.swift */; };
+		0FD03CFC86388CA03806A25C /* PairSetupSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E653CC141A7F0417C79E18F /* PairSetupSheet.swift */; };
+		F87CF9B98FCFA90D449007A4 /* IslandPupWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5B41FFE6756E224FC753299 /* IslandPupWidgetBundle.swift */; };
+		9ADFA8135A339DB05ADE48E6 /* IslandPupLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59BCFE25BF1AD53D8B8C7436 /* IslandPupLiveActivity.swift */; };
+		A45CA1A71194B492FC521C16 /* IslandPupWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 0E0C9B834543376C089ABB95 /* IslandPupWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		04EA7F79F72C60DA4289E905 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7F21432F54023D1667FD4923 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 530EEDC985ED70DF5374B084;
+			remoteInfo = IslandPupWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		8955823C118EFF00850ABBCA /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A45CA1A71194B492FC521C16 /* IslandPupWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		6BFA25FABE811DFAA9A60463 /* PetModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PetModels.swift"; path = "Shared/Models/PetModels.swift"; sourceTree = "<group>"; };
+		907568B3E18A337CFD99C10A /* PetActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PetActivityAttributes.swift"; path = "Shared/Models/PetActivityAttributes.swift"; sourceTree = "<group>"; };
+		88EDA62732103496F8C9CB50 /* AnimatedPetSpriteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "AnimatedPetSpriteView.swift"; path = "Shared/Views/AnimatedPetSpriteView.swift"; sourceTree = "<group>"; };
+		3901C2E0C926BFE6FAFCFD45 /* SharedStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SharedStorage.swift"; path = "Shared/Sync/SharedStorage.swift"; sourceTree = "<group>"; };
+		6722D94416DB3EB05B0F4F11 /* PairSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PairSyncService.swift"; path = "Shared/Sync/PairSyncService.swift"; sourceTree = "<group>"; };
+		4F0C5EAB513535110889F86E /* PetLiveActivityIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PetLiveActivityIntents.swift"; path = "Shared/Intents/PetLiveActivityIntents.swift"; sourceTree = "<group>"; };
+		D9A9320A152F13731C1D78D8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = "Assets.xcassets"; path = "Shared/Assets.xcassets"; sourceTree = "<group>"; };
+		C07CD661A70B47F80BFB0D56 /* PetTimerGate.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = "PetTimerGate.ttf"; path = "Shared/Resources/PetTimerGate.ttf"; sourceTree = "<group>"; };
+		7C74E7ADDC6CD7D9958CD3F5 /* IslandPupApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "IslandPupApp.swift"; path = "IslandPup/IslandPupApp.swift"; sourceTree = "<group>"; };
+		F12B26D7CDBCB4E4BAA40791 /* LiveActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "LiveActivityController.swift"; path = "IslandPup/Controllers/LiveActivityController.swift"; sourceTree = "<group>"; };
+		559FFF73073594B7925314E8 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ContentView.swift"; path = "IslandPup/Views/ContentView.swift"; sourceTree = "<group>"; };
+		44C101EBA75AF9B25C0520FD /* DynamicIslandPreviewBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "DynamicIslandPreviewBar.swift"; path = "IslandPup/Views/DynamicIslandPreviewBar.swift"; sourceTree = "<group>"; };
+		4E653CC141A7F0417C79E18F /* PairSetupSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PairSetupSheet.swift"; path = "IslandPup/Views/PairSetupSheet.swift"; sourceTree = "<group>"; };
+		D5B41FFE6756E224FC753299 /* IslandPupWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "IslandPupWidgetBundle.swift"; path = "IslandPupWidget/IslandPupWidgetBundle.swift"; sourceTree = "<group>"; };
+		59BCFE25BF1AD53D8B8C7436 /* IslandPupLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "IslandPupLiveActivity.swift"; path = "IslandPupWidget/IslandPupLiveActivity.swift"; sourceTree = "<group>"; };
+		837B7A43D505CFD7414BD2D0 /* AppInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = "Info.plist"; path = "IslandPup/Info.plist"; sourceTree = "<group>"; };
+		F6F26D8E7CCA403D36697DAA /* IslandPup.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = "IslandPup.entitlements"; path = "IslandPup/IslandPup.entitlements"; sourceTree = "<group>"; };
+		089C777DD799C71D0BBBA4F6 /* WidgetInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = "Info.plist"; path = "IslandPupWidget/Info.plist"; sourceTree = "<group>"; };
+		C87CBC7271B1E6D37007AC73 /* IslandPupWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = "IslandPupWidget.entitlements"; path = "IslandPupWidget/IslandPupWidget.entitlements"; sourceTree = "<group>"; };
+		DAD1D6D3101B50C24F35FE94 /* IslandPup.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = IslandPup.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0E0C9B834543376C089ABB95 /* IslandPupWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = IslandPupWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C1542AF025A61D1248C4E463 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		450AD27551CD4E44A79F044A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		E8833687E011C94B2910C48C = {
+			isa = PBXGroup;
+			children = (
+				61E87FDCEBDAEE873F017262 /* Shared */,
+				1F7A550AF1F95CDDE3D469E5 /* IslandPup */,
+				795D59B20C6934EAD9809298 /* IslandPupWidget */,
+				4072092EE35763F44633B61A /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		61E87FDCEBDAEE873F017262 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				6BFA25FABE811DFAA9A60463,
+				907568B3E18A337CFD99C10A,
+				88EDA62732103496F8C9CB50,
+				3901C2E0C926BFE6FAFCFD45,
+				6722D94416DB3EB05B0F4F11,
+				4F0C5EAB513535110889F86E,
+				D9A9320A152F13731C1D78D8,
+				C07CD661A70B47F80BFB0D56,
+			);
+			name = Shared;
+			sourceTree = "<group>";
+		};
+		1F7A550AF1F95CDDE3D469E5 /* IslandPup */ = {
+			isa = PBXGroup;
+			children = (
+				7C74E7ADDC6CD7D9958CD3F5,
+				F12B26D7CDBCB4E4BAA40791,
+				559FFF73073594B7925314E8,
+				44C101EBA75AF9B25C0520FD,
+				4E653CC141A7F0417C79E18F,
+				837B7A43D505CFD7414BD2D0,
+				F6F26D8E7CCA403D36697DAA,
+			);
+			name = IslandPup;
+			sourceTree = "<group>";
+		};
+		795D59B20C6934EAD9809298 /* IslandPupWidget */ = {
+			isa = PBXGroup;
+			children = (
+				D5B41FFE6756E224FC753299,
+				59BCFE25BF1AD53D8B8C7436,
+				089C777DD799C71D0BBBA4F6,
+				C87CBC7271B1E6D37007AC73,
+			);
+			name = IslandPupWidget;
+			sourceTree = "<group>";
+		};
+		4072092EE35763F44633B61A /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				DAD1D6D3101B50C24F35FE94 /* IslandPup.app */,
+				0E0C9B834543376C089ABB95 /* IslandPupWidgetExtension.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		DB51A4F2C7E0F366990A16F8 /* IslandPup */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4BC3717B1CEE6AE7B067CD88 /* Build configuration list for PBXNativeTarget "IslandPup" */;
+			buildPhases = (
+				F43A103A4CE08280D1E021F8 /* Sources */,
+				C1542AF025A61D1248C4E463 /* Frameworks */,
+				28B0891EBF1E6A3704F48335 /* Resources */,
+				8955823C118EFF00850ABBCA /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AC2FEBE28EF7E702E01E1A8E /* PBXTargetDependency */,
+			);
+			name = IslandPup;
+			productName = IslandPup;
+			productReference = DAD1D6D3101B50C24F35FE94 /* IslandPup.app */;
+			productType = "com.apple.product-type.application";
+		};
+		530EEDC985ED70DF5374B084 /* IslandPupWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 982D69A3A76D3089C2AA13AC /* Build configuration list for PBXNativeTarget "IslandPupWidgetExtension" */;
+			buildPhases = (
+				95D6D74EE849358782611E08 /* Sources */,
+				450AD27551CD4E44A79F044A /* Frameworks */,
+				8A1F597D066E28F93A112B7A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = IslandPupWidgetExtension;
+			productName = IslandPupWidgetExtension;
+			productReference = 0E0C9B834543376C089ABB95 /* IslandPupWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		7F21432F54023D1667FD4923 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					DB51A4F2C7E0F366990A16F8 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					530EEDC985ED70DF5374B084 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = 5188D2890E4B9C33658BF03D /* Build configuration list for PBXProject "IslandPup" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = E8833687E011C94B2910C48C;
+			productRefGroup = 4072092EE35763F44633B61A /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				DB51A4F2C7E0F366990A16F8 /* IslandPup */,
+				530EEDC985ED70DF5374B084 /* IslandPupWidgetExtension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		28B0891EBF1E6A3704F48335 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7179CE2F08E1B61916801F1E,
+				F351AECD73649DC48ABD5463,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8A1F597D066E28F93A112B7A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C2E3EDE222D71C6CFC229C41,
+				5859BD0456154FF4C3DFFDF4,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F43A103A4CE08280D1E021F8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F57594AE5F82CC08FACE0B18,
+				D3D1BEE76BF6C1A190D9B9ED,
+				4C8687F828C387521A505688,
+				9A80B16E0FA9EB6288D795DB,
+				FA13584E23921FD6CC36175D,
+				4F727ACF99B7E5FC4E0738AD,
+				101CD7379342363243462915,
+				C325C661AF5B0A29B4FD70E3,
+				38BC6D372DE75ECD1E146C7D,
+				701B47E9A40863D1719C016B,
+				0FD03CFC86388CA03806A25C,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		95D6D74EE849358782611E08 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A6A55B405EA0EA1A7700FB00,
+				73023C5727E50CE5F55B2CF2,
+				2A41EC1AF4A2D99C39EE7F02,
+				98D20C741B63BCD2C7BF69EC,
+				B71471BFF70398F8625847C9,
+				059B84DA441B72921D79EC23,
+				F87CF9B98FCFA90D449007A4,
+				9ADFA8135A339DB05ADE48E6,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AC2FEBE28EF7E702E01E1A8E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 530EEDC985ED70DF5374B084 /* IslandPupWidgetExtension */;
+			targetProxy = 04EA7F79F72C60DA4289E905 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		691A0DE1904BFA87C30B25FC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		89EBFB7F7EB2D24375EB8FEA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		9BA48681C835A52416CB5650 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = IslandPup/IslandPup.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				INFOPLIST_FILE = IslandPup/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.islandpup.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		CA46C88EFB38312AFCC40905 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = IslandPup/IslandPup.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				INFOPLIST_FILE = IslandPup/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.islandpup.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		8463E7A68BB5AB635EC96518 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = IslandPupWidget/IslandPupWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				INFOPLIST_FILE = IslandPupWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.islandpup.app.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		9F3A26C6CEE6AED2B39D65A0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = IslandPupWidget/IslandPupWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				INFOPLIST_FILE = IslandPupWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.islandpup.app.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5188D2890E4B9C33658BF03D /* Build configuration list for PBXProject "IslandPup" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				691A0DE1904BFA87C30B25FC /* Debug */,
+				89EBFB7F7EB2D24375EB8FEA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4BC3717B1CEE6AE7B067CD88 /* Build configuration list for PBXNativeTarget "IslandPup" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9BA48681C835A52416CB5650 /* Debug */,
+				CA46C88EFB38312AFCC40905 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		982D69A3A76D3089C2AA13AC /* Build configuration list for PBXNativeTarget "IslandPupWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8463E7A68BB5AB635EC96518 /* Debug */,
+				9F3A26C6CEE6AED2B39D65A0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 7F21432F54023D1667FD4923 /* Project object */;
+}

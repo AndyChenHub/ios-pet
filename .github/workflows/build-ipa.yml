@@ -1,0 +1,55 @@
+name: Build IslandPup iOS IPA
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-ipa:
+    name: Build iOS App & Dynamic Island Widget (.ipa)
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Ensure XcodeGen is installed
+        run: |
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+          xcodegen generate
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build unsigned Release iOS App + WidgetExtension
+        run: |
+          xcodebuild clean build \
+            -project IslandPup.xcodeproj \
+            -scheme IslandPup \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package IslandPup.ipa (for AltStore / SideStore / Sideloadly)
+        run: |
+          APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/IslandPup.app"
+          test -d "$APP_PATH"
+          test -d "$APP_PATH/PlugIns/IslandPupWidgetExtension.appex"
+          mkdir -p build/ipa/Payload
+          cp -R "$APP_PATH" build/ipa/Payload/IslandPup.app
+          cd build/ipa
+          zip -qry IslandPup.ipa Payload
+
+      - name: Upload IslandPup.ipa Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: IslandPup-iOS-IPA
+          path: build/ipa/IslandPup.ipa
+          if-no-files-found: error

@@ -1,0 +1,20 @@
+# Xcode / macOS build artifacts
+build/
+DerivedData/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Xcode user-specific state
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+
+# macOS / Windows metadata
+.DS_Store
+Thumbs.db
+
+# Python cache
+__pycache__/
+.venv/
+venv/
