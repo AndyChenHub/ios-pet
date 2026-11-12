@@ -33,14 +33,15 @@ final class LiveActivityController: ObservableObject {
             return
         }
 
-        // Guarantee only 1 pet Live Activity runs on the Dynamic Island at a time.
         for existing in Activity<PetActivityAttributes>.activities {
             await existing.end(nil, dismissalPolicy: .immediate)
         }
 
         do {
+            let safeState = state.fittingActivityKitBudget()
+            let staleDate = safeState.activeInteraction.map { Date(timeIntervalSince1970: $0.expiresAt) }
             let attributes = PetActivityAttributes()
-            let content = ActivityContent(state: state, staleDate: nil)
+            let content = ActivityContent(state: safeState, staleDate: staleDate)
             _ = try Activity.request(
                 attributes: attributes,
                 content: content,

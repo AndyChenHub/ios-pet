@@ -26,7 +26,7 @@ struct PairSetupSheet: View {
                 .padding(20)
             }
             .background(Color(red: 0.06, green: 0.07, blue: 0.11).ignoresSafeArea())
-            .navigationTitle("Phone Pairing")
+            .navigationTitle("Two-Phone Pairing")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -48,12 +48,12 @@ struct PairSetupSheet: View {
 
     private var profileSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("YOUR DISPLAY NAME")
+            Text("YOUR NICKNAME")
                 .font(.system(size: 11, weight: .heavy, design: .rounded))
                 .tracking(0.6)
                 .foregroundStyle(.white.opacity(0.55))
 
-            TextField("Your nickname (shown on partner's Island)", text: $nameInput)
+            TextField("Your nickname (shown on partner's notifications)", text: $nameInput)
                 .textInputAutocapitalization(.words)
                 .disableAutocorrection(true)
                 .padding(12)
@@ -65,7 +65,7 @@ struct PairSetupSheet: View {
                     commitProfileFields()
                 }
 
-            Text("Shown when you set the other phone's pet action (e.g. “Set by \(nameInput.isEmpty ? "Friend" : nameInput)”).")
+            Text("When connected, \(syncService.myPetProfile.name) & your partner's pet appear together on both phones' Dynamic Islands!")
                 .font(.system(size: 12, design: .rounded))
                 .foregroundStyle(.white.opacity(0.5))
         }
@@ -122,7 +122,7 @@ struct PairSetupSheet: View {
                     .foregroundStyle(.white.opacity(0.55))
 
                 HStack(spacing: 10) {
-                    TextField("Enter code (e.g. PAWS42)", text: $joinCodeInput)
+                    TextField("Enter code (e.g. PAWS4279)", text: $joinCodeInput)
                         .textInputAutocapitalization(.characters)
                         .disableAutocorrection(true)
                         .font(.system(size: 17, weight: .bold, design: .monospaced))
@@ -199,7 +199,7 @@ struct PairSetupSheet: View {
                     }
 
                     ShareLink(
-                        item: "Join my IslandPup Dynamic Island pet room! Enter pair code: \(syncService.pairCode)"
+                        item: "Join my IslandPup Dynamic Island room so both our pets hang out together! Pair code: \(syncService.pairCode)"
                     ) {
                         Label("Share", systemImage: "square.and.arrow.up")
                             .font(.system(size: 14, weight: .semibold, design: .rounded))
@@ -213,7 +213,7 @@ struct PairSetupSheet: View {
                 }
                 .foregroundStyle(.white)
 
-                Text("Enter this exact code on the second iPhone so you can control each other's Dynamic Island pet.")
+                Text("Enter this exact code on the second iPhone so both pets appear together on the Dynamic Island, share messages in notifications, and have rare surprise interactions!")
                     .font(.system(size: 12, design: .rounded))
                     .foregroundStyle(.white.opacity(0.6))
                     .multilineTextAlignment(.center)
@@ -262,7 +262,7 @@ struct PairSetupSheet: View {
         syncService.myName = nameInput
         syncService.relayBaseURL = relayInput
         Task {
-            await syncService.publishStatus()
+            _ = await syncService.broadcastMyPetState(isExplicitUpdate: false)
         }
     }
 }

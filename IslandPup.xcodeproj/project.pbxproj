@@ -7,12 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9124AC867199525116DAD840 /* MicroSpriteCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F44F4FE95590CF0CCD6BA5C /* MicroSpriteCodec.swift */; };
+		8A8C8BCA96469DB6189D49C9 /* MicroSpriteCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F44F4FE95590CF0CCD6BA5C /* MicroSpriteCodec.swift */; };
 		F57594AE5F82CC08FACE0B18 /* PetModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BFA25FABE811DFAA9A60463 /* PetModels.swift */; };
 		A6A55B405EA0EA1A7700FB00 /* PetModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BFA25FABE811DFAA9A60463 /* PetModels.swift */; };
 		D3D1BEE76BF6C1A190D9B9ED /* PetActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 907568B3E18A337CFD99C10A /* PetActivityAttributes.swift */; };
 		73023C5727E50CE5F55B2CF2 /* PetActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 907568B3E18A337CFD99C10A /* PetActivityAttributes.swift */; };
 		4C8687F828C387521A505688 /* AnimatedPetSpriteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88EDA62732103496F8C9CB50 /* AnimatedPetSpriteView.swift */; };
 		2A41EC1AF4A2D99C39EE7F02 /* AnimatedPetSpriteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88EDA62732103496F8C9CB50 /* AnimatedPetSpriteView.swift */; };
+		FFEB810AD68FF6EF12EA423F /* CustomPetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 565529B340ED4E048DCCEBCD /* CustomPetStore.swift */; };
+		DF1EA117D960FEE1F44DEE11 /* CustomPetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 565529B340ED4E048DCCEBCD /* CustomPetStore.swift */; };
+		3FEECEB720A81923B7C1A824 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1DFBE35A4B2DDC264B558C7 /* NotificationManager.swift */; };
+		9CEA196F0B60A1DB7137089D /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1DFBE35A4B2DDC264B558C7 /* NotificationManager.swift */; };
 		9A80B16E0FA9EB6288D795DB /* SharedStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3901C2E0C926BFE6FAFCFD45 /* SharedStorage.swift */; };
 		98D20C741B63BCD2C7BF69EC /* SharedStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3901C2E0C926BFE6FAFCFD45 /* SharedStorage.swift */; };
 		FA13584E23921FD6CC36175D /* PairSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6722D94416DB3EB05B0F4F11 /* PairSyncService.swift */; };
@@ -26,6 +32,7 @@
 		101CD7379342363243462915 /* IslandPupApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C74E7ADDC6CD7D9958CD3F5 /* IslandPupApp.swift */; };
 		C325C661AF5B0A29B4FD70E3 /* LiveActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F12B26D7CDBCB4E4BAA40791 /* LiveActivityController.swift */; };
 		38BC6D372DE75ECD1E146C7D /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 559FFF73073594B7925314E8 /* ContentView.swift */; };
+		8F0D5366441D3BBEF7D751FF /* AddPetSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5737C069FB16F560DE295171 /* AddPetSheet.swift */; };
 		701B47E9A40863D1719C016B /* DynamicIslandPreviewBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44C101EBA75AF9B25C0520FD /* DynamicIslandPreviewBar.swift */; };
 		0FD03CFC86388CA03806A25C /* PairSetupSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E653CC141A7F0417C79E18F /* PairSetupSheet.swift */; };
 		F87CF9B98FCFA90D449007A4 /* IslandPupWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5B41FFE6756E224FC753299 /* IslandPupWidgetBundle.swift */; };
@@ -58,9 +65,12 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		8F44F4FE95590CF0CCD6BA5C /* MicroSpriteCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "MicroSpriteCodec.swift"; path = "Shared/Models/MicroSpriteCodec.swift"; sourceTree = "<group>"; };
 		6BFA25FABE811DFAA9A60463 /* PetModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PetModels.swift"; path = "Shared/Models/PetModels.swift"; sourceTree = "<group>"; };
 		907568B3E18A337CFD99C10A /* PetActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PetActivityAttributes.swift"; path = "Shared/Models/PetActivityAttributes.swift"; sourceTree = "<group>"; };
 		88EDA62732103496F8C9CB50 /* AnimatedPetSpriteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "AnimatedPetSpriteView.swift"; path = "Shared/Views/AnimatedPetSpriteView.swift"; sourceTree = "<group>"; };
+		565529B340ED4E048DCCEBCD /* CustomPetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CustomPetStore.swift"; path = "Shared/Sync/CustomPetStore.swift"; sourceTree = "<group>"; };
+		A1DFBE35A4B2DDC264B558C7 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "NotificationManager.swift"; path = "Shared/Sync/NotificationManager.swift"; sourceTree = "<group>"; };
 		3901C2E0C926BFE6FAFCFD45 /* SharedStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SharedStorage.swift"; path = "Shared/Sync/SharedStorage.swift"; sourceTree = "<group>"; };
 		6722D94416DB3EB05B0F4F11 /* PairSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PairSyncService.swift"; path = "Shared/Sync/PairSyncService.swift"; sourceTree = "<group>"; };
 		4F0C5EAB513535110889F86E /* PetLiveActivityIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PetLiveActivityIntents.swift"; path = "Shared/Intents/PetLiveActivityIntents.swift"; sourceTree = "<group>"; };
@@ -69,6 +79,7 @@
 		7C74E7ADDC6CD7D9958CD3F5 /* IslandPupApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "IslandPupApp.swift"; path = "IslandPup/IslandPupApp.swift"; sourceTree = "<group>"; };
 		F12B26D7CDBCB4E4BAA40791 /* LiveActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "LiveActivityController.swift"; path = "IslandPup/Controllers/LiveActivityController.swift"; sourceTree = "<group>"; };
 		559FFF73073594B7925314E8 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ContentView.swift"; path = "IslandPup/Views/ContentView.swift"; sourceTree = "<group>"; };
+		5737C069FB16F560DE295171 /* AddPetSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "AddPetSheet.swift"; path = "IslandPup/Views/AddPetSheet.swift"; sourceTree = "<group>"; };
 		44C101EBA75AF9B25C0520FD /* DynamicIslandPreviewBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "DynamicIslandPreviewBar.swift"; path = "IslandPup/Views/DynamicIslandPreviewBar.swift"; sourceTree = "<group>"; };
 		4E653CC141A7F0417C79E18F /* PairSetupSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PairSetupSheet.swift"; path = "IslandPup/Views/PairSetupSheet.swift"; sourceTree = "<group>"; };
 		D5B41FFE6756E224FC753299 /* IslandPupWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "IslandPupWidgetBundle.swift"; path = "IslandPupWidget/IslandPupWidgetBundle.swift"; sourceTree = "<group>"; };
@@ -112,9 +123,12 @@
 		61E87FDCEBDAEE873F017262 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				8F44F4FE95590CF0CCD6BA5C,
 				6BFA25FABE811DFAA9A60463,
 				907568B3E18A337CFD99C10A,
 				88EDA62732103496F8C9CB50,
+				565529B340ED4E048DCCEBCD,
+				A1DFBE35A4B2DDC264B558C7,
 				3901C2E0C926BFE6FAFCFD45,
 				6722D94416DB3EB05B0F4F11,
 				4F0C5EAB513535110889F86E,
@@ -130,6 +144,7 @@
 				7C74E7ADDC6CD7D9958CD3F5,
 				F12B26D7CDBCB4E4BAA40791,
 				559FFF73073594B7925314E8,
+				5737C069FB16F560DE295171,
 				44C101EBA75AF9B25C0520FD,
 				4E653CC141A7F0417C79E18F,
 				837B7A43D505CFD7414BD2D0,
@@ -260,15 +275,19 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9124AC867199525116DAD840,
 				F57594AE5F82CC08FACE0B18,
 				D3D1BEE76BF6C1A190D9B9ED,
 				4C8687F828C387521A505688,
+				FFEB810AD68FF6EF12EA423F,
+				3FEECEB720A81923B7C1A824,
 				9A80B16E0FA9EB6288D795DB,
 				FA13584E23921FD6CC36175D,
 				4F727ACF99B7E5FC4E0738AD,
 				101CD7379342363243462915,
 				C325C661AF5B0A29B4FD70E3,
 				38BC6D372DE75ECD1E146C7D,
+				8F0D5366441D3BBEF7D751FF,
 				701B47E9A40863D1719C016B,
 				0FD03CFC86388CA03806A25C,
 			);
@@ -278,9 +297,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8A8C8BCA96469DB6189D49C9,
 				A6A55B405EA0EA1A7700FB00,
 				73023C5727E50CE5F55B2CF2,
 				2A41EC1AF4A2D99C39EE7F02,
+				DF1EA117D960FEE1F44DEE11,
+				9CEA196F0B60A1DB7137089D,
 				98D20C741B63BCD2C7BF69EC,
 				B71471BFF70398F8625847C9,
 				059B84DA441B72921D79EC23,

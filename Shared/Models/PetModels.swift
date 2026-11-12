@@ -1,14 +1,14 @@
 import Foundation
 import SwiftUI
 
-/// Represents the single active pet character displayed on the Dynamic Island.
+/// Built-in high-resolution bundled pet spritesheets in `Assets.xcassets`.
 public enum PetCharacter: String, Codable, CaseIterable, Identifiable, Hashable, Sendable {
     case alfie
     case teddy
 
     public var id: String { rawValue }
 
-    public var displayName: String {
+    public var defaultName: String {
         switch self {
         case .alfie: return "Alfie"
         case .teddy: return "Teddy"
@@ -22,19 +22,10 @@ public enum PetCharacter: String, Codable, CaseIterable, Identifiable, Hashable,
         }
     }
 
-    public var tagline: String {
+    public var defaultColorPreset: PetColorPreset {
         switch self {
-        case .alfie: return "Playful brown & white terrier with a bright red collar"
-        case .teddy: return "Fluffy charcoal schnauzer with soulful puppy eyes"
-        }
-    }
-
-    public var themeColor: Color {
-        switch self {
-        case .alfie:
-            return Color(red: 0.96, green: 0.49, blue: 0.29)
-        case .teddy:
-            return Color(red: 0.56, green: 0.65, blue: 0.96)
+        case .alfie: return .sunsetOrange
+        case .teddy: return .periwinkleBlue
         }
     }
 
@@ -51,7 +42,225 @@ public enum PetCharacter: String, Codable, CaseIterable, Identifiable, Hashable,
     }
 }
 
-/// All 10 sprite animations derived from the Alfie & Teddy spritesheets.
+/// Selectable accent color themes for built-in and custom spritesheet pets.
+public enum PetColorPreset: String, Codable, CaseIterable, Identifiable, Hashable, Sendable {
+    case sunsetOrange
+    case periwinkleBlue
+    case mintGreen
+    case berryPink
+    case goldenHoney
+    case lavenderPurple
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .sunsetOrange:   return "Sunset"
+        case .periwinkleBlue: return "Sky"
+        case .mintGreen:      return "Mint"
+        case .berryPink:      return "Berry"
+        case .goldenHoney:    return "Honey"
+        case .lavenderPurple: return "Lavender"
+        }
+    }
+
+    public var color: Color {
+        switch self {
+        case .sunsetOrange:   return Color(red: 0.96, green: 0.49, blue: 0.29)
+        case .periwinkleBlue: return Color(red: 0.56, green: 0.65, blue: 0.96)
+        case .mintGreen:      return Color(red: 0.34, green: 0.85, blue: 0.66)
+        case .berryPink:      return Color(red: 0.96, green: 0.43, blue: 0.68)
+        case .goldenHoney:    return Color(red: 0.98, green: 0.76, blue: 0.28)
+        case .lavenderPurple: return Color(red: 0.72, green: 0.54, blue: 0.98)
+        }
+    }
+}
+
+/// User-selectable pet profile (either a renameable built-in pet or a user-imported custom spritesheet pet).
+public struct PetProfile: Codable, Identifiable, Hashable, Sendable {
+    public var id: String
+    public var name: String
+    public var subtitle: String
+    public var builtInCharacter: PetCharacter?
+    public var customSheetID: String?
+    public var colorPreset: PetColorPreset
+
+    public init(
+        id: String,
+        name: String,
+        subtitle: String,
+        builtInCharacter: PetCharacter? = nil,
+        customSheetID: String? = nil,
+        colorPreset: PetColorPreset
+    ) {
+        self.id = id
+        self.name = name
+        self.subtitle = subtitle
+        self.builtInCharacter = builtInCharacter
+        self.customSheetID = customSheetID
+        self.colorPreset = colorPreset
+    }
+
+    public var isCustom: Bool {
+        customSheetID != nil && builtInCharacter == nil
+    }
+
+    public var themeColor: Color {
+        colorPreset.color
+    }
+
+    public static let defaultAlfie = PetProfile(
+        id: "builtin-alfie",
+        name: "Alfie",
+        subtitle: PetCharacter.alfie.breedSubtitle,
+        builtInCharacter: .alfie,
+        customSheetID: nil,
+        colorPreset: .sunsetOrange
+    )
+
+    public static let defaultTeddy = PetProfile(
+        id: "builtin-teddy",
+        name: "Teddy",
+        subtitle: PetCharacter.teddy.breedSubtitle,
+        builtInCharacter: .teddy,
+        customSheetID: nil,
+        colorPreset: .periwinkleBlue
+    )
+}
+
+/// Lightweight, self-contained pet state rendered in Dynamic Island, Lock Screen, and Partner stages.
+public struct IslandPetSnapshot: Codable, Hashable, Sendable {
+    public var id: String
+    public var name: String
+    public var builtInCharacter: PetCharacter?
+    public var customSheetID: String?
+    public var colorPreset: PetColorPreset
+    public var action: PetAction
+    /// Present when rendering a custom spritesheet pet across Dynamic Island / remote partner sync.
+    public var customMicroFrames: [Data]?
+
+    public init(
+        id: String,
+        name: String,
+        builtInCharacter: PetCharacter? = nil,
+        customSheetID: String? = nil,
+        colorPreset: PetColorPreset = .sunsetOrange,
+        action: PetAction = .idle,
+        customMicroFrames: [Data]? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.builtInCharacter = builtInCharacter
+        self.customSheetID = customSheetID
+        self.colorPreset = colorPreset
+        self.action = action
+        self.customMicroFrames = customMicroFrames
+    }
+
+    public var themeColor: Color {
+        colorPreset.color
+    }
+
+    public func withAction(_ newAction: PetAction) -> IslandPetSnapshot {
+        var copy = self
+        copy.action = newAction
+        return copy
+    }
+}
+
+/// Rare spontaneous interactions where both connected dogs play or cuddle together on the Dynamic Island.
+public enum RareInteractionKind: String, Codable, CaseIterable, Identifiable, Hashable, Sendable {
+    case noseBoop
+    case zoomieChase
+    case jumpParty
+    case snuggleNap
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .noseBoop:    return "Nose Boop!"
+        case .zoomieChase: return "Play Zoomies!"
+        case .jumpParty:   return "Puppy Dance!"
+        case .snuggleNap:  return "Snuggle Nap!"
+        }
+    }
+
+    public var badgeEmoji: String {
+        switch self {
+        case .noseBoop:    return "💖"
+        case .zoomieChase: return "🐾✨"
+        case .jumpParty:   return "🎉✨"
+        case .snuggleNap:  return "💕💤"
+        }
+    }
+
+    public var centerIcon: String {
+        switch self {
+        case .noseBoop:    return "💖"
+        case .zoomieChase: return "⚡"
+        case .jumpParty:   return "✨"
+        case .snuggleNap:  return "💕"
+        }
+    }
+
+    public var myDogAction: PetAction {
+        switch self {
+        case .noseBoop:    return .waving
+        case .zoomieChase: return .runRight
+        case .jumpParty:   return .jumping
+        case .snuggleNap:  return .sleeping
+        }
+    }
+
+    public var partnerDogAction: PetAction {
+        switch self {
+        case .noseBoop:    return .waving
+        case .zoomieChase: return .runLeft
+        case .jumpParty:   return .jumping
+        case .snuggleNap:  return .sleeping
+        }
+    }
+
+    public func descriptionText(myPetName: String, partnerPetName: String) -> String {
+        switch self {
+        case .noseBoop:
+            return "\(myPetName) & \(partnerPetName) booped noses!"
+        case .zoomieChase:
+            return "\(myPetName) & \(partnerPetName) got the zoomies together!"
+        case .jumpParty:
+            return "\(myPetName) & \(partnerPetName) are doing a happy dance!"
+        case .snuggleNap:
+            return "\(myPetName) & \(partnerPetName) curled up together!"
+        }
+    }
+}
+
+/// Active rare two-dog event synchronized across both paired iPhones.
+public struct RarePetInteraction: Codable, Hashable, Sendable {
+    public var id: String
+    public var kind: RareInteractionKind
+    public var startedAt: TimeInterval
+    public var expiresAt: TimeInterval
+
+    public init(
+        id: String = UUID().uuidString,
+        kind: RareInteractionKind,
+        startedAt: TimeInterval = Date().timeIntervalSince1970,
+        duration: TimeInterval = 36
+    ) {
+        self.id = id
+        self.kind = kind
+        self.startedAt = startedAt
+        self.expiresAt = startedAt + duration
+    }
+
+    public func isActive(at now: TimeInterval = Date().timeIntervalSince1970) -> Bool {
+        now <= expiresAt
+    }
+}
+
+/// All 10 sprite animations derived from the spritesheet grid.
 public enum PetAction: String, Codable, CaseIterable, Identifiable, Hashable, Sendable {
     case idle
     case sleeping
@@ -141,7 +350,7 @@ public enum PetAction: String, Codable, CaseIterable, Identifiable, Hashable, Se
         }
     }
 
-    /// Number of sliced frames in Assets.xcassets for this action.
+    /// Number of sliced frames in Assets.xcassets for this action (even counts: 4, 6, or 8).
     public var frameCount: Int {
         switch self {
         case .idle:     return 6

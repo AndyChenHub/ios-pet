@@ -21,9 +21,12 @@ def oid(key: str) -> str:
 
 def generate_pbxproj() -> str:
     shared_swift = [
+        ("MicroSpriteCodec.swift", "Shared/Models/MicroSpriteCodec.swift"),
         ("PetModels.swift", "Shared/Models/PetModels.swift"),
         ("PetActivityAttributes.swift", "Shared/Models/PetActivityAttributes.swift"),
         ("AnimatedPetSpriteView.swift", "Shared/Views/AnimatedPetSpriteView.swift"),
+        ("CustomPetStore.swift", "Shared/Sync/CustomPetStore.swift"),
+        ("NotificationManager.swift", "Shared/Sync/NotificationManager.swift"),
         ("SharedStorage.swift", "Shared/Sync/SharedStorage.swift"),
         ("PairSyncService.swift", "Shared/Sync/PairSyncService.swift"),
         ("PetLiveActivityIntents.swift", "Shared/Intents/PetLiveActivityIntents.swift"),
@@ -36,6 +39,7 @@ def generate_pbxproj() -> str:
         ("IslandPupApp.swift", "IslandPup/IslandPupApp.swift"),
         ("LiveActivityController.swift", "IslandPup/Controllers/LiveActivityController.swift"),
         ("ContentView.swift", "IslandPup/Views/ContentView.swift"),
+        ("AddPetSheet.swift", "IslandPup/Views/AddPetSheet.swift"),
         ("DynamicIslandPreviewBar.swift", "IslandPup/Views/DynamicIslandPreviewBar.swift"),
         ("PairSetupSheet.swift", "IslandPup/Views/PairSetupSheet.swift"),
     ]

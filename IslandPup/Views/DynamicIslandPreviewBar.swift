@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Interactive in-app Dynamic Island mockup so users can preview Compact, Minimal,
-/// and Expanded Dynamic Island modes right inside the app (and tap to switch!).
+/// Interactive in-app Dynamic Island preview showing 1 dog when solo and BOTH dogs
+/// when connected (including partner messages and rare spontaneous 2-dog interactions!).
 struct DynamicIslandPreviewBar: View {
     enum IslandMode: String, CaseIterable {
         case compact = "Compact"
@@ -9,13 +9,14 @@ struct DynamicIslandPreviewBar: View {
         case minimal = "Minimal"
     }
 
-    let character: PetCharacter
-    let action: PetAction
-    let senderName: String?
-    let note: String?
+    let state: PetActivityAttributes.ContentState
     let isLiveOnDeviceIsland: Bool
 
     @State private var mode: IslandMode = .expanded
+
+    private var myPet: IslandPetSnapshot { state.displayMyPet }
+    private var partnerPet: IslandPetSnapshot? { state.displayPartnerPet }
+    private var interaction: RarePetInteraction? { state.activeInteraction }
 
     var body: some View {
         VStack(spacing: 10) {
@@ -46,8 +47,8 @@ struct DynamicIslandPreviewBar: View {
                     .fill(
                         LinearGradient(
                             colors: [
-                                character.themeColor.opacity(0.22),
-                                action.accentColor.opacity(0.14),
+                                (interaction != nil ? Color.pink : myPet.themeColor).opacity(0.22),
+                                (partnerPet?.themeColor ?? myPet.action.accentColor).opacity(0.15),
                                 Color.white.opacity(0.04)
                             ],
                             startPoint: .topLeading,
@@ -86,12 +87,18 @@ struct DynamicIslandPreviewBar: View {
 
     private var compactCapsule: some View {
         HStack(spacing: 14) {
-            AnimatedPetSpriteView(
-                character: character,
-                action: action,
-                size: 30,
-                driver: .liveTimeline
-            )
+            ZStack(alignment: .topTrailing) {
+                AnimatedPetSpriteView(
+                    pet: myPet,
+                    size: 30,
+                    driver: .liveTimeline
+                )
+                if let interaction {
+                    Text(interaction.kind.centerIcon)
+                        .font(.system(size: 10))
+                        .offset(x: 4, y: -2)
+                }
+            }
 
             // Simulated TrueDepth camera pill area
             Capsule()
@@ -104,8 +111,24 @@ struct DynamicIslandPreviewBar: View {
                         .padding(.trailing, 5)
                 }
 
-            Text(action.emoji)
-                .font(.system(size: 16))
+            if let partner = partnerPet, state.hasTwoDogs {
+                ZStack(alignment: .topLeading) {
+                    AnimatedPetSpriteView(
+                        pet: partner,
+                        size: 30,
+                        driver: .liveTimeline,
+                        flipHorizontally: partner.action != .runLeft && partner.action != .runRight
+                    )
+                    if let interaction {
+                        Text(interaction.kind.centerIcon)
+                            .font(.system(size: 10))
+                            .offset(x: -4, y: -2)
+                    }
+                }
+            } else {
+                Text(myPet.action.emoji)
+                    .font(.system(size: 16))
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 7)
@@ -115,7 +138,7 @@ struct DynamicIslandPreviewBar: View {
                 .shadow(color: .black.opacity(0.55), radius: 14, x: 0, y: 8)
                 .overlay(
                     Capsule()
-                        .strokeBorder(character.themeColor.opacity(0.45), lineWidth: 1)
+                        .strokeBorder((interaction != nil ? Color.pink : myPet.themeColor).opacity(0.5), lineWidth: 1)
                 )
         )
     }
@@ -137,12 +160,11 @@ struct DynamicIslandPreviewBar: View {
                     .fill(.black)
                     .frame(width: 38, height: 38)
                     .overlay(
-                        Circle().strokeBorder(character.themeColor.opacity(0.5), lineWidth: 1)
+                        Circle().strokeBorder(myPet.themeColor.opacity(0.5), lineWidth: 1)
                     )
 
                 AnimatedPetSpriteView(
-                    character: character,
-                    action: action,
+                    pet: myPet,
                     size: 28,
                     driver: .liveTimeline
                 )
@@ -151,70 +173,142 @@ struct DynamicIslandPreviewBar: View {
         .shadow(color: .black.opacity(0.5), radius: 12, x: 0, y: 6)
     }
 
+    @ViewBuilder
     private var expandedCapsule: some View {
-        HStack(spacing: 14) {
-            ZStack {
-                Circle()
-                    .fill(action.accentColor.opacity(0.20))
-                    .frame(width: 74, height: 74)
+        if let partner = partnerPet, state.hasTwoDogs {
+            VStack(spacing: 10) {
+                HStack(spacing: 10) {
+                    VStack(spacing: 3) {
+                        AnimatedPetSpriteView(
+                            pet: myPet,
+                            size: 56,
+                            driver: .liveTimeline,
+                            showSleepBadge: true
+                        )
+                        Text("\(myPet.name) \(myPet.action.emoji)")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                    }
 
-                AnimatedPetSpriteView(
-                    character: character,
-                    action: action,
-                    size: 70,
-                    driver: .liveTimeline,
-                    showSleepBadge: true
-                )
+                    Spacer(minLength: 4)
+
+                    VStack(spacing: 4) {
+                        if let interaction {
+                            Text("\(interaction.kind.badgeEmoji) \(interaction.kind.title)")
+                                .font(.system(size: 12, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Color(red: 1.0, green: 0.76, blue: 0.88))
+                            Text(interaction.kind.descriptionText(myPetName: myPet.name, partnerPetName: partner.name))
+                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.85))
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                        } else if let partnerMsg = state.partnerMessage, !partnerMsg.isEmpty {
+                            Text("💬 \(partner.name)'s Message")
+                                .font(.system(size: 10, weight: .heavy, design: .rounded))
+                                .foregroundStyle(partner.themeColor)
+                            Text("“\(partnerMsg)”")
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                        } else {
+                            Text("Both Dogs Live 🐾")
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                            Text("\(partner.name) \(partner.action.statusPhrase)")
+                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.72))
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    Spacer(minLength: 4)
+
+                    VStack(spacing: 3) {
+                        AnimatedPetSpriteView(
+                            pet: partner,
+                            size: 56,
+                            driver: .liveTimeline,
+                            showSleepBadge: true,
+                            flipHorizontally: partner.action != .runLeft && partner.action != .runRight
+                        )
+                        Text("\(partner.name) \(partner.action.emoji)")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                    }
+                }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    .fill(.black)
+                    .shadow(color: .black.opacity(0.6), radius: 16, x: 0, y: 8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 32, style: .continuous)
+                            .strokeBorder((interaction != nil ? Color.pink : myPet.themeColor).opacity(0.45), lineWidth: 1.2)
+                    )
+            )
+        } else {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(myPet.themeColor.opacity(0.20))
+                        .frame(width: 68, height: 68)
 
-            VStack(alignment: .leading, spacing: 5) {
-                HStack {
-                    Text("\(character.displayName) \(action.statusPhrase)")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-
-                    Spacer()
-
-                    Text("\(action.emoji) \(action.title)")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Capsule().fill(action.accentColor.opacity(0.32)))
+                    AnimatedPetSpriteView(
+                        pet: myPet,
+                        size: 62,
+                        driver: .liveTimeline,
+                        showSleepBadge: true
+                    )
                 }
 
-                if let senderName, let note, !note.isEmpty {
-                    Text("\(senderName): “\(note)”")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.78))
-                        .lineLimit(1)
-                } else if let senderName {
-                    Text("Set by \(senderName)")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.72))
-                } else if let note, !note.isEmpty {
-                    Text("“\(note)”")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.78))
-                        .lineLimit(1)
-                } else {
-                    Text(character.breedSubtitle)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.62))
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack {
+                        Text("\(myPet.name) \(myPet.action.statusPhrase)")
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+
+                        Spacer()
+
+                        Text("\(myPet.action.emoji) \(myPet.action.title)")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(myPet.action.accentColor.opacity(0.32)))
+                    }
+
+                    if let myMsg = state.myMessage, !myMsg.isEmpty {
+                        Text("“\(myMsg)”")
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.78))
+                            .lineLimit(1)
+                    } else {
+                        Text("Pair with a partner to bring both dogs onto the Dynamic Island!")
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.62))
+                            .lineLimit(2)
+                    }
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    .fill(.black)
+                    .shadow(color: .black.opacity(0.6), radius: 16, x: 0, y: 8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 32, style: .continuous)
+                            .strokeBorder(myPet.themeColor.opacity(0.38), lineWidth: 1)
+                    )
+            )
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .background(
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .fill(.black)
-                .shadow(color: .black.opacity(0.6), radius: 16, x: 0, y: 8)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 32, style: .continuous)
-                        .strokeBorder(character.themeColor.opacity(0.38), lineWidth: 1)
-                )
-        )
     }
 }

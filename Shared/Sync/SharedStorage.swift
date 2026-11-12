@@ -1,116 +1,90 @@
 import Foundation
 import Security
 
-/// Persists pet selection and phone-to-phone pairing state across both the App Group
-/// container (when available) and standard UserDefaults (for unsigned/free sideloading).
+/// Persists pet roster selection, custom pet state, partner pet snapshot, partner message,
+/// and rare interaction state across UserDefaults.
 public final class SharedStorage: @unchecked Sendable {
     public static let shared = SharedStorage()
-    public static let appGroupIdentifier = "group.com.islandpup.shared"
     public static let defaultRelayURL = "https://ntfy.sh"
 
-    private let groupDefaults: UserDefaults?
-    private let standardDefaults: UserDefaults
+    private let defaults = UserDefaults.standard
 
     private enum Keys {
-        static let deviceId = "islandpup.deviceId"
-        static let myName = "islandpup.myName"
-        static let myCharacter = "islandpup.myCharacter"
-        static let myAction = "islandpup.myAction"
-        static let lastSenderName = "islandpup.lastSenderName"
-        static let lastNote = "islandpup.lastNote"
-        static let pairCode = "islandpup.pairCode"
-        static let relayBaseURL = "islandpup.relayBaseURL"
-        static let partnerName = "islandpup.partnerName"
-        static let partnerCharacter = "islandpup.partnerCharacter"
-        static let partnerAction = "islandpup.partnerAction"
-        static let lastAppliedRemoteSentAt = "islandpup.lastAppliedRemoteSentAt"
+        static let deviceId = "islandpup.v3.deviceId"
+        static let myName = "islandpup.v3.myName"
+        static let selectedPetID = "islandpup.v3.selectedPetID"
+        static let myAction = "islandpup.v3.myAction"
+        static let myMessage = "islandpup.v3.myMessage"
+        static let pairCode = "islandpup.v3.pairCode"
+        static let relayBaseURL = "islandpup.v3.relayBaseURL"
+        static let partnerOwnerName = "islandpup.v3.partnerOwnerName"
+        static let partnerPetData = "islandpup.v3.partnerPetData"
+        static let partnerMessage = "islandpup.v3.partnerMessage"
+        static let rareInteractionData = "islandpup.v3.rareInteractionData"
+        static let lastAppliedRemoteSentAt = "islandpup.v3.lastAppliedRemoteSentAt"
+        static let lastNotifiedRemoteSentAt = "islandpup.v3.lastNotifiedRemoteSentAt"
+        static let lastRareInteractionAt = "islandpup.v3.lastRareInteractionAt"
     }
 
-    private init() {
-        self.groupDefaults = UserDefaults(suiteName: Self.appGroupIdentifier)
-        self.standardDefaults = .standard
-    }
-
-    private func string(forKey key: String) -> String? {
-        if let val = groupDefaults?.string(forKey: key), !val.isEmpty {
-            return val
-        }
-        return standardDefaults.string(forKey: key)
-    }
-
-    private func setString(_ value: String?, forKey key: String) {
-        if let value {
-            groupDefaults?.set(value, forKey: key)
-            standardDefaults.set(value, forKey: key)
-        } else {
-            groupDefaults?.removeObject(forKey: key)
-            standardDefaults.removeObject(forKey: key)
-        }
-    }
-
-    private func double(forKey key: String) -> Double {
-        let g = groupDefaults?.double(forKey: key) ?? 0
-        let s = standardDefaults.double(forKey: key)
-        return max(g, s)
-    }
-
-    private func setDouble(_ value: Double, forKey key: String) {
-        groupDefaults?.set(value, forKey: key)
-        standardDefaults.set(value, forKey: key)
-    }
+    private init() {}
 
     public var deviceId: String {
-        if let existing = string(forKey: Keys.deviceId), !existing.isEmpty {
+        if let existing = defaults.string(forKey: Keys.deviceId), !existing.isEmpty {
             return existing
         }
         let fresh = UUID().uuidString
-        setString(fresh, forKey: Keys.deviceId)
+        defaults.set(fresh, forKey: Keys.deviceId)
         return fresh
     }
 
     public var myName: String {
-        get { string(forKey: Keys.myName) ?? "Friend" }
+        get { defaults.string(forKey: Keys.myName) ?? "Me" }
         set {
             let sanitized = Self.sanitizeDisplayText(newValue, maxLength: 20)
-            setString(sanitized.isEmpty ? "Friend" : sanitized, forKey: Keys.myName)
+            defaults.set(sanitized.isEmpty ? "Me" : sanitized, forKey: Keys.myName)
         }
     }
 
-    public var myCharacter: PetCharacter {
-        get {
-            guard let raw = string(forKey: Keys.myCharacter),
-                  let pet = PetCharacter(rawValue: raw) else {
-                return .alfie
-            }
-            return pet
+    public var selectedPetID: String {
+        get { defaults.string(forKey: Keys.selectedPetID) ?? PetProfile.defaultAlfie.id }
+        set { defaults.set(newValue, forKey: Keys.selectedPetID) }
+    }
+
+    public var selectedPetProfile: PetProfile {
+        let roster = CustomPetStore.shared.loadRoster()
+        if let match = roster.first(where: { $0.id == selectedPetID }) {
+            return match
         }
-        set { setString(newValue.rawValue, forKey: Keys.myCharacter) }
+        let fallback = roster.first ?? .defaultAlfie
+        selectedPetID = fallback.id
+        return fallback
     }
 
     public var myAction: PetAction {
         get {
-            guard let raw = string(forKey: Keys.myAction),
+            guard let raw = defaults.string(forKey: Keys.myAction),
                   let act = PetAction(rawValue: raw) else {
                 return .idle
             }
             return act
         }
-        set { setString(newValue.rawValue, forKey: Keys.myAction) }
+        set { defaults.set(newValue.rawValue, forKey: Keys.myAction) }
     }
 
-    public var lastSenderName: String? {
-        get { string(forKey: Keys.lastSenderName) }
-        set { setString(newValue, forKey: Keys.lastSenderName) }
-    }
-
-    public var lastNote: String? {
-        get { string(forKey: Keys.lastNote) }
-        set { setString(newValue, forKey: Keys.lastNote) }
+    public var myMessage: String? {
+        get { defaults.string(forKey: Keys.myMessage) }
+        set {
+            if let newValue, !newValue.isEmpty {
+                defaults.set(newValue, forKey: Keys.myMessage)
+            } else {
+                defaults.removeObject(forKey: Keys.myMessage)
+            }
+        }
     }
 
     public var pairCode: String {
-        get { Self.normalizePairCode(string(forKey: Keys.pairCode) ?? "") }
-        set { setString(Self.normalizePairCode(newValue), forKey: Keys.pairCode) }
+        get { Self.normalizePairCode(defaults.string(forKey: Keys.pairCode) ?? "") }
+        set { defaults.set(Self.normalizePairCode(newValue), forKey: Keys.pairCode) }
     }
 
     public var isPaired: Bool {
@@ -118,45 +92,89 @@ public final class SharedStorage: @unchecked Sendable {
     }
 
     public var relayBaseURL: String {
-        get { Self.sanitizeRelayBaseURL(string(forKey: Keys.relayBaseURL) ?? Self.defaultRelayURL) }
-        set { setString(Self.sanitizeRelayBaseURL(newValue), forKey: Keys.relayBaseURL) }
+        get { Self.sanitizeRelayBaseURL(defaults.string(forKey: Keys.relayBaseURL) ?? Self.defaultRelayURL) }
+        set { defaults.set(Self.sanitizeRelayBaseURL(newValue), forKey: Keys.relayBaseURL) }
     }
 
-    public var partnerName: String? {
-        get { string(forKey: Keys.partnerName) }
-        set { setString(newValue, forKey: Keys.partnerName) }
-    }
-
-    public var partnerCharacter: PetCharacter? {
-        get {
-            guard let raw = string(forKey: Keys.partnerCharacter) else { return nil }
-            return PetCharacter(rawValue: raw)
+    public var partnerOwnerName: String? {
+        get { defaults.string(forKey: Keys.partnerOwnerName) }
+        set {
+            if let newValue, !newValue.isEmpty {
+                defaults.set(newValue, forKey: Keys.partnerOwnerName)
+            } else {
+                defaults.removeObject(forKey: Keys.partnerOwnerName)
+            }
         }
-        set { setString(newValue?.rawValue, forKey: Keys.partnerCharacter) }
     }
 
-    public var partnerAction: PetAction? {
+    public var partnerPet: IslandPetSnapshot? {
         get {
-            guard let raw = string(forKey: Keys.partnerAction) else { return nil }
-            return PetAction(rawValue: raw)
+            guard let data = defaults.data(forKey: Keys.partnerPetData) else { return nil }
+            return try? JSONDecoder().decode(IslandPetSnapshot.self, from: data)
         }
-        set { setString(newValue?.rawValue, forKey: Keys.partnerAction) }
+        set {
+            if let newValue, let data = try? JSONEncoder().encode(newValue) {
+                defaults.set(data, forKey: Keys.partnerPetData)
+            } else {
+                defaults.removeObject(forKey: Keys.partnerPetData)
+            }
+        }
+    }
+
+    public var partnerMessage: String? {
+        get { defaults.string(forKey: Keys.partnerMessage) }
+        set {
+            if let newValue, !newValue.isEmpty {
+                defaults.set(newValue, forKey: Keys.partnerMessage)
+            } else {
+                defaults.removeObject(forKey: Keys.partnerMessage)
+            }
+        }
+    }
+
+    public var rareInteraction: RarePetInteraction? {
+        get {
+            guard let data = defaults.data(forKey: Keys.rareInteractionData),
+                  let decoded = try? JSONDecoder().decode(RarePetInteraction.self, from: data),
+                  decoded.isActive() else {
+                return nil
+            }
+            return decoded
+        }
+        set {
+            if let newValue, newValue.isActive(), let data = try? JSONEncoder().encode(newValue) {
+                defaults.set(data, forKey: Keys.rareInteractionData)
+            } else {
+                defaults.removeObject(forKey: Keys.rareInteractionData)
+            }
+        }
     }
 
     public var lastAppliedRemoteSentAt: TimeInterval {
-        get { double(forKey: Keys.lastAppliedRemoteSentAt) }
-        set { setDouble(newValue, forKey: Keys.lastAppliedRemoteSentAt) }
+        get { defaults.double(forKey: Keys.lastAppliedRemoteSentAt) }
+        set { defaults.set(newValue, forKey: Keys.lastAppliedRemoteSentAt) }
+    }
+
+    public var lastNotifiedRemoteSentAt: TimeInterval {
+        get { defaults.double(forKey: Keys.lastNotifiedRemoteSentAt) }
+        set { defaults.set(newValue, forKey: Keys.lastNotifiedRemoteSentAt) }
+    }
+
+    public var lastRareInteractionAt: TimeInterval {
+        get { defaults.double(forKey: Keys.lastRareInteractionAt) }
+        set { defaults.set(newValue, forKey: Keys.lastRareInteractionAt) }
     }
 
     public func clearPartnerMetadata() {
-        partnerName = nil
-        partnerCharacter = nil
-        partnerAction = nil
+        partnerOwnerName = nil
+        partnerPet = nil
+        partnerMessage = nil
+        rareInteraction = nil
         lastAppliedRemoteSentAt = 0
+        lastNotifiedRemoteSentAt = 0
     }
 
-    /// Generates an 8-character cryptographically random pair code (40 bits of entropy,
-    /// using unambiguous uppercase characters and `SecRandomCopyBytes`).
+    /// Generates an 8-character cryptographically random pair code (`SecRandomCopyBytes`).
     public static func generatePairCode() -> String {
         let alphabet = Array("ABCDEFGHJKLMNPQRSTUVWXYZ23456789")
         var randomBytes = [UInt8](repeating: 0, count: 8)
@@ -173,7 +191,6 @@ public final class SharedStorage: @unchecked Sendable {
         return String(allowed.prefix(16))
     }
 
-    /// Strips control characters and enforces a strict character cap on untrusted display strings.
     public static func sanitizeDisplayText(_ raw: String, maxLength: Int) -> String {
         let filtered = raw.unicodeScalars.filter { scalar in
             !CharacterSet.controlCharacters.contains(scalar)
@@ -183,7 +200,6 @@ public final class SharedStorage: @unchecked Sendable {
         return String(cleaned.prefix(maxLength))
     }
 
-    /// Enforces HTTPS (allowing HTTP only for localhost loopback testing) and strips credentials/queries.
     public static func sanitizeRelayBaseURL(_ raw: String) -> String {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard var components = URLComponents(string: trimmed),
@@ -209,16 +225,22 @@ public final class SharedStorage: @unchecked Sendable {
             ?? defaultRelayURL
     }
 
-    /// Builds a current `PetActivityAttributes.ContentState` snapshot from stored state.
+    /// Builds a safe, `< 4 KB` `PetActivityAttributes.ContentState` snapshot for Dynamic Island & Lock Screen.
     public func currentContentState() -> PetActivityAttributes.ContentState {
-        PetActivityAttributes.ContentState(
-            character: myCharacter,
-            action: myAction,
-            senderName: lastSenderName,
-            note: lastNote,
+        let profile = selectedPetProfile
+        let activeRare = isPaired && partnerPet != nil ? rareInteraction : nil
+        let effectiveMyAction = activeRare?.kind.myDogAction ?? myAction
+        var mySnapshot = CustomPetStore.shared.makeSnapshot(for: profile, action: effectiveMyAction)
+        mySnapshot.action = myAction
+
+        return PetActivityAttributes.ContentState(
+            myPet: mySnapshot,
+            myMessage: myMessage,
             isPaired: isPaired,
-            partnerCharacter: partnerCharacter,
-            partnerAction: partnerAction
-        )
+            partnerPet: partnerPet,
+            partnerOwnerName: partnerOwnerName,
+            partnerMessage: partnerMessage,
+            rareInteraction: activeRare
+        ).fittingActivityKitBudget()
     }
 }

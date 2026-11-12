@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>IslandPup — Dynamic Island Pet Simulator & Pair Companion</title>
+  <title>IslandPup — Two-Dog Dynamic Island Simulator & Pair Companion</title>
   <style>
     :root {
       --bg: #0b0d16;
       --card: rgba(255, 255, 255, 0.06);
       --border: rgba(255, 255, 255, 0.11);
       --text: #f5f7ff;
-      --muted: rgba(245, 247, 255, 0.6);
+      --muted: rgba(245, 247, 255, 0.62);
       --accent: #ff7a59;
     }
     * { box-sizing: border-box; }
@@ -23,17 +23,16 @@
       padding: 24px 16px 56px;
     }
     .wrap {
-      max-width: 960px;
+      max-width: 980px;
       margin: 0 auto;
       display: grid;
-      grid-template-columns: 380px 1fr;
+      grid-template-columns: 390px 1fr;
       gap: 24px;
       align-items: start;
     }
-    @media (max-width: 820px) {
+    @media (max-width: 840px) {
       .wrap { grid-template-columns: 1fr; }
     }
-    /* Simulated iPhone bezel + Dynamic Island */
     .iphone-frame {
       background: linear-gradient(165deg, #242942 0%, #121525 55%, #0d101c 100%);
       border: 4px solid #2e334d;
@@ -43,7 +42,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      min-height: 520px;
+      min-height: 560px;
       position: relative;
       overflow: hidden;
     }
@@ -59,7 +58,7 @@
       position: relative;
       z-index: 2;
       background: #000;
-      border: 1px solid rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.16);
       box-shadow: 0 10px 28px rgba(0, 0, 0, 0.72);
       transition: all 0.34s cubic-bezier(0.22, 1, 0.36, 1);
       cursor: pointer;
@@ -97,26 +96,25 @@
     .expanded-row {
       display: flex;
       align-items: center;
-      gap: 12px;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .pet-slot {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      flex-shrink: 0;
     }
     .pet-halo {
-      width: 72px;
-      height: 72px;
-      border-radius: 50%;
-      background: rgba(255, 122, 89, 0.18);
+      width: 58px;
+      height: 58px;
+      border-radius: 16px;
+      background: #000;
+      border: 1.5px solid rgba(255, 122, 89, 0.55);
       display: flex;
       align-items: center;
       justify-content: center;
-      flex-shrink: 0;
-      position: relative;
-    }
-    .zzz-badge {
-      position: absolute;
-      top: 0;
-      right: -2px;
-      font-size: 12px;
-      font-weight: 800;
-      color: #c2b8ff;
     }
     .quick-bar {
       display: grid;
@@ -138,21 +136,33 @@
     .lock-clock {
       position: relative;
       z-index: 1;
-      margin-top: 38px;
+      margin-top: 28px;
       text-align: center;
     }
     .lock-clock .time {
-      font-size: 64px;
+      font-size: 58px;
       font-weight: 800;
       letter-spacing: -2px;
       line-height: 1;
       opacity: 0.9;
     }
     .lock-clock .date {
-      font-size: 14px;
+      font-size: 13px;
       color: var(--muted);
       margin-bottom: 6px;
       font-weight: 600;
+    }
+    .notif-banner {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      margin-top: 18px;
+      background: rgba(26, 30, 48, 0.88);
+      border: 1px solid rgba(124, 148, 255, 0.45);
+      border-radius: 20px;
+      padding: 12px 14px;
+      backdrop-filter: blur(12px);
+      display: none;
     }
     .mode-hint {
       margin-top: auto;
@@ -163,7 +173,6 @@
       padding: 8px 14px;
       border-radius: 999px;
     }
-    /* Controls column */
     .card {
       background: var(--card);
       border: 1px solid var(--border);
@@ -181,7 +190,7 @@
     }
     .pet-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(3, 1fr);
       gap: 10px;
     }
     .pet-choice {
@@ -212,7 +221,7 @@
       padding: 10px 12px;
       font-size: 14px;
       flex: 1;
-      min-width: 130px;
+      min-width: 120px;
     }
     .btn {
       background: #fff;
@@ -268,65 +277,51 @@
       background: #888;
     }
     .dot.live { background: #38d9a9; }
-    .segmented {
-      display: inline-flex;
-      background: rgba(255, 255, 255, 0.09);
-      border-radius: 10px;
-      padding: 3px;
-    }
-    .segmented button {
-      border: none;
-      background: transparent;
-      color: var(--muted);
-      padding: 6px 12px;
-      border-radius: 8px;
-      font-size: 12px;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    .segmented button.active {
-      background: #fff;
-      color: #000;
-    }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <!-- Left: Interactive iPhone Dynamic Island Preview -->
+    <!-- Left: Simulated iPhone Dynamic Island + Partner Notification -->
     <div class="iphone-frame">
       <div class="wallpaper-glow"></div>
 
       <div id="islandBox" class="island expanded" title="Click to toggle Compact / Expanded Dynamic Island">
         <div id="compactView" style="display:none; align-items:center; gap:14px;">
-          <canvas id="compactCanvas" width="192" height="208" style="width:30px;height:32px;"></canvas>
+          <canvas id="compactMyCanvas" width="192" height="208" style="width:28px;height:30px;"></canvas>
           <div class="camera-dot"></div>
+          <canvas id="compactPartnerCanvas" width="192" height="208" style="width:28px;height:30px;display:none;transform:scaleX(-1);"></canvas>
           <span id="compactEmoji" style="font-size:15px;">😊</span>
         </div>
 
         <div id="expandedView">
           <div class="expanded-row">
-            <div class="pet-halo">
-              <canvas id="expandedCanvas" width="192" height="208" style="width:64px;height:69px;"></canvas>
-              <span id="zzzBadge" class="zzz-badge" style="display:none;">zZz</span>
-            </div>
-            <div style="flex:1; min-width:0;">
-              <div id="islandTitle" style="font-weight:800; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                Alfie is hanging out
+            <div class="pet-slot">
+              <div class="pet-halo">
+                <canvas id="expandedMyCanvas" width="192" height="208" style="width:48px;height:52px;"></canvas>
               </div>
-              <div id="islandSub" style="font-size:11px; color:rgba(255,255,255,0.7); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                Chibi Terrier Pup
+              <div id="myIslandLabel" style="font-size:10px;font-weight:800;">Alfie 😊</div>
+            </div>
+
+            <div style="flex:1; min-width:0; text-align:center;">
+              <div id="islandTitle" style="font-weight:800; font-size:13px;">Alfie is hanging out</div>
+              <div id="islandSub" style="font-size:11px; color:rgba(255,255,255,0.75); margin-top:3px;">
+                Pair to show both dogs on the Island!
               </div>
             </div>
-            <div id="islandBadge" style="font-size:11px; font-weight:700; background:rgba(255,255,255,0.14); padding:4px 8px; border-radius:999px;">
-              😊 Idle
+
+            <div id="partnerExpandedSlot" class="pet-slot" style="display:none;">
+              <div class="pet-halo" style="border-color:rgba(124,148,255,0.65);">
+                <canvas id="expandedPartnerCanvas" width="192" height="208" style="width:48px;height:52px;transform:scaleX(-1);"></canvas>
+              </div>
+              <div id="partnerIslandLabel" style="font-size:10px;font-weight:800;">Teddy 😊</div>
             </div>
           </div>
 
           <div class="quick-bar" onclick="event.stopPropagation()">
-            <button class="quick-btn" onclick="quickIslandTap('sleeping')">💤 Sleep</button>
-            <button class="quick-btn" onclick="quickIslandTap('waving')">👋 Wave</button>
-            <button class="quick-btn" onclick="quickIslandTap('jumping')">🎉 Jump</button>
-            <button class="quick-btn" onclick="quickIslandTap('working')">💻 Work</button>
+            <button class="quick-btn" onclick="triggerMyAction('sleeping')">💤 Sleep</button>
+            <button class="quick-btn" onclick="triggerMyAction('waving')">👋 Wave</button>
+            <button class="quick-btn" onclick="triggerMyAction('jumping')">🎉 Jump</button>
+            <button class="quick-btn" onclick="triggerMyAction('working')">💻 Work</button>
           </div>
         </div>
       </div>
@@ -336,54 +331,59 @@
         <div class="time">9:41</div>
       </div>
 
+      <div id="notifBanner" class="notif-banner">
+        <div id="notifTitle" style="font-size:11px; font-weight:800; color:#8fa4ff; text-transform:uppercase;">🐾 PARTNER NOTIFICATION</div>
+        <div id="notifBody" style="font-size:13px; font-weight:700; margin-top:3px;"></div>
+      </div>
+
       <div class="mode-hint">Click the Dynamic Island pill above to toggle Compact ↔ Expanded</div>
     </div>
 
-    <!-- Right: Pet Picker, Two-Phone Pairing & Remote Action Deck -->
+    <!-- Right: Pet Selection, Custom Spritesheet, Naming, Pairing & Actions -->
     <div>
       <div class="card">
-        <div class="section-label">1. My Active Island Pet (1 at a time)</div>
-        <div class="pet-grid">
-          <button id="petAlfie" class="pet-choice active" onclick="selectPet('alfie')">
-            <div style="font-weight:800; font-size:15px;">🐶 Alfie</div>
-            <div style="font-size:12px; color:var(--muted); margin-top:2px;">Chibi Terrier Pup</div>
+        <div class="section-label">1. Select Pet, Import Spritesheet & Name Pet</div>
+        <div id="petGrid" class="pet-grid">
+          <button id="petAlfie" class="pet-choice active" onclick="selectBuiltIn('alfie')">
+            <div style="font-weight:800; font-size:14px;">🐶 Alfie</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:2px;">Built-in Sheet</div>
           </button>
-          <button id="petTeddy" class="pet-choice" onclick="selectPet('teddy')">
-            <div style="font-weight:800; font-size:15px;">🐾 Teddy</div>
-            <div style="font-size:12px; color:var(--muted); margin-top:2px;">Scruffy Schnauzer Pup</div>
+          <button id="petTeddy" class="pet-choice" onclick="selectBuiltIn('teddy')">
+            <div style="font-weight:800; font-size:14px;">🐾 Teddy</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:2px;">Built-in Sheet</div>
           </button>
+          <label class="pet-choice" style="display:block;">
+            <div style="font-weight:800; font-size:14px;">➕ Import Sheet</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:2px;">Custom PNG</div>
+            <input id="customSheetInput" type="file" accept="image/*" style="display:none;" onchange="importCustomSheet(event)" />
+          </label>
+        </div>
+        <div class="pair-row" style="margin-top:12px;">
+          <input id="petNameInput" type="text" value="Alfie" placeholder="Pet name (e.g. Mochi)" oninput="onPetNameEdited()" />
         </div>
       </div>
 
       <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-          <div class="section-label" style="margin:0;">2. Pair with iPhone (or 2nd Tab)</div>
+          <div class="section-label" style="margin:0;">2. Pair with iPhone (v3 AES-256-GCM)</div>
           <span class="status-pill"><span id="connDot" class="dot"></span><span id="connText">Unpaired</span></span>
         </div>
         <div class="pair-row">
-          <input id="myNameInput" type="text" value="Alex" placeholder="Your name" style="max-width:130px;" />
-          <input id="pairCodeInput" type="text" placeholder="8-char Pair Code (e.g. PAWS7K9M)" style="text-transform:uppercase; font-family:monospace; font-weight:700;" />
+          <input id="myNameInput" type="text" value="Alex" placeholder="Your nickname" style="max-width:125px;" />
+          <input id="pairCodeInput" type="text" placeholder="8-char Pair Code" style="text-transform:uppercase; font-family:monospace; font-weight:700;" />
           <button class="btn secondary" onclick="generateCode()">New Code</button>
           <button class="btn" onclick="connectPair()">Link</button>
         </div>
         <div id="partnerStatusLine" style="font-size:12px; color:var(--muted); margin-top:10px;">
-          Uses end-to-end AES-256-GCM encryption matching the iOS app — open in two tabs or pair directly with an iPhone!
+          Pair with an iPhone (or second browser tab) — both dogs appear on the Dynamic Island, messages show in notifications, and rare interactions happen spontaneously!
         </div>
       </div>
 
       <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-          <div class="section-label" style="margin:0;">3. Set Pet Action</div>
-          <div class="segmented">
-            <button id="targetPartnerBtn" onclick="setTarget('partner')">Partner's Phone</button>
-            <button id="targetMineBtn" class="active" onclick="setTarget('mine')">My Island</button>
-          </div>
+        <div class="section-label">3. Set My Pet's Action & Partner Notification Message</div>
+        <div class="pair-row">
+          <input id="noteInput" type="text" placeholder="Message for partner's notification (e.g. Goodnight! 🌙)" />
         </div>
-
-        <div class="pair-row" style="margin-top:10px;">
-          <input id="noteInput" type="text" placeholder="Optional note (e.g. Time for sleep! 🌙)" />
-        </div>
-
         <div id="actionsGrid" class="actions-grid"></div>
       </div>
     </div>
@@ -392,7 +392,8 @@
   <script>
     const SHEETS = {
       alfie: new Image(),
-      teddy: new Image()
+      teddy: new Image(),
+      custom: null
     };
     SHEETS.alfie.src = "../Sprites/Alfie/spritesheet.png";
     SHEETS.teddy.src = "../Sprites/Teddy/spritesheet.png";
@@ -401,7 +402,7 @@
       { key: "idle",     title: "Idle",       emoji: "😊", phrase: "is hanging out",       row: 0, cols: [0,1,2,3,4,5], fps: 6 },
       { key: "sleeping", title: "Sleeping",   emoji: "💤", phrase: "is fast asleep",       row: 5, cols: [5,7,6,7],     fps: 2.2 },
       { key: "waving",   title: "Waving",     emoji: "👋", phrase: "is waving hi!",        row: 3, cols: [0,1,2,3],     fps: 6 },
-      { key: "jumping",  title: "Jumping",    emoji: "🎉", phrase: "is jumping for joy!",  row: 4, cols: [0,1,2,3,4],   fps: 7 },
+      { key: "jumping",  title: "Jumping",    emoji: "🎉", phrase: "is jumping for joy!",  row: 4, cols: [0,1,2,3,4,0], fps: 7 },
       { key: "runRight", title: "Trot Right", emoji: "🐾", phrase: "is trotting along",    row: 1, cols: [0,1,2,3,4,5,6,7], fps: 8 },
       { key: "runLeft",  title: "Trot Left",  emoji: "🐾", phrase: "is zoomie-running",    row: 2, cols: [0,1,2,3,4,5,6,7], fps: 8 },
       { key: "waiting",  title: "Waiting",    emoji: "❓", phrase: "is waiting for you",   row: 6, cols: [0,1,2,3,4,5], fps: 6 },
@@ -410,6 +411,13 @@
       { key: "dizzy",    title: "Dizzy",      emoji: "😵‍💫", phrase: "did a dramatic sploot", row: 5, cols: [0,1,2,3,4,5,6,7], fps: 7 }
     ];
 
+    const RARE_KINDS = {
+      noseBoop:    { title: "Nose Boop! 💖",    myAct: "waving",   partnerAct: "waving" },
+      zoomieChase: { title: "Play Zoomies! 🐾", myAct: "runRight", partnerAct: "runLeft" },
+      jumpParty:   { title: "Puppy Dance! 🎉",  myAct: "jumping",  partnerAct: "jumping" },
+      snuggleNap:  { title: "Snuggle Nap! 💕",  myAct: "sleeping", partnerAct: "sleeping" }
+    };
+
     function randomHexId(bytesLen = 8) {
       const arr = new Uint8Array(bytesLen);
       crypto.getRandomValues(arr);
@@ -417,14 +425,14 @@
     }
 
     const deviceId = "web-" + randomHexId(8);
-    let myCharacter = "alfie";
+    let mySpriteKind = "alfie";
+    let myPetName = "Alfie";
     let myAction = "idle";
-    let lastSender = null;
-    let lastNote = null;
-    let controlTarget = "mine";
     let pairCode = "";
-    let partnerAction = null;
     let partnerPet = null;
+    let partnerMessage = null;
+    let partnerOwner = null;
+    let activeRare = null;
     let lastAppliedSentAt = 0;
     let eventSource = null;
     let isExpanded = true;
@@ -432,8 +440,10 @@
     const islandBox = document.getElementById("islandBox");
     const compactView = document.getElementById("compactView");
     const expandedView = document.getElementById("expandedView");
-    const compactCtx = document.getElementById("compactCanvas").getContext("2d");
-    const expandedCtx = document.getElementById("expandedCanvas").getContext("2d");
+    const compactMyCtx = document.getElementById("compactMyCanvas").getContext("2d");
+    const compactPartnerCtx = document.getElementById("compactPartnerCanvas").getContext("2d");
+    const expandedMyCtx = document.getElementById("expandedMyCanvas").getContext("2d");
+    const expandedPartnerCtx = document.getElementById("expandedPartnerCanvas").getContext("2d");
 
     islandBox.addEventListener("click", () => {
       isExpanded = !isExpanded;
@@ -446,91 +456,109 @@
       return ACTIONS.find(a => a.key === key) || ACTIONS[0];
     }
 
-    function renderActionButtons() {
-      const grid = document.getElementById("actionsGrid");
-      grid.innerHTML = "";
-      ACTIONS.forEach(a => {
-        const activeKey = controlTarget === "partner" ? partnerAction : myAction;
-        const btn = document.createElement("button");
-        btn.className = "act-btn" + (activeKey === a.key ? " active" : "");
-        btn.innerHTML = `<span>${a.emoji} ${a.title}</span><span style="font-size:11px;color:var(--muted);">${controlTarget === "partner" ? "Send →" : "Local"}</span>`;
-        btn.onclick = () => triggerAction(a.key);
-        grid.appendChild(btn);
-      });
-    }
-
-    function updateIslandHeader() {
-      const meta = getActionMeta(myAction);
-      const petName = myCharacter === "alfie" ? "Alfie" : "Teddy";
-      const breed = myCharacter === "alfie" ? "Chibi Terrier Pup" : "Scruffy Schnauzer Pup";
-      document.getElementById("islandTitle").textContent = `${petName} ${meta.phrase}`;
-      document.getElementById("islandBadge").textContent = `${meta.emoji} ${meta.title}`;
-      document.getElementById("compactEmoji").textContent = meta.emoji;
-      document.getElementById("zzzBadge").style.display = myAction === "sleeping" ? "block" : "none";
-
-      if (lastSender && lastNote) {
-        document.getElementById("islandSub").textContent = `${lastSender}: “${lastNote}”`;
-      } else if (lastSender) {
-        document.getElementById("islandSub").textContent = `Set by ${lastSender}`;
-      } else if (lastNote) {
-        document.getElementById("islandSub").textContent = `“${lastNote}”`;
-      } else {
-        document.getElementById("islandSub").textContent = breed;
-      }
-    }
-
-    function selectPet(pet) {
-      myCharacter = pet;
-      document.getElementById("petAlfie").classList.toggle("active", pet === "alfie");
-      document.getElementById("petTeddy").classList.toggle("active", pet === "teddy");
-      updateIslandHeader();
-      publishStatus();
-    }
-
-    function setTarget(target) {
-      controlTarget = target;
-      document.getElementById("targetPartnerBtn").classList.toggle("active", target === "partner");
-      document.getElementById("targetMineBtn").classList.toggle("active", target === "mine");
-      renderActionButtons();
-    }
-
-    function quickIslandTap(actionKey) {
-      if (pairCode) {
-        sendToPartner(actionKey);
-      } else {
-        applyLocalAction(actionKey, null, null);
-      }
-    }
-
-    function triggerAction(actionKey) {
-      const note = document.getElementById("noteInput").value.trim() || null;
-      if (controlTarget === "partner") {
-        if (!pairCode) {
-          alert("Enter or generate a 6-character Pair Code first, or switch to 'My Island'!");
-          return;
-        }
-        sendToPartner(actionKey, note);
-      } else {
-        applyLocalAction(actionKey, null, note);
-      }
-    }
-
-    function applyLocalAction(actionKey, sender, note) {
-      myAction = actionKey;
-      lastSender = sender;
-      lastNote = note;
-      frameCursor = 0;
-      updateIslandHeader();
-      renderActionButtons();
-      publishStatus();
+    function sanitizeText(raw, maxLen) {
+      return (raw || "").replace(/[\u0000-\u001F\u007F]/g, "").trim().slice(0, maxLen);
     }
 
     function normalizeCode(raw) {
       return (raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 16);
     }
 
-    function sanitizeText(raw, maxLen) {
-      return (raw || "").replace(/[\u0000-\u001F\u007F]/g, "").trim().slice(0, maxLen);
+    function selectBuiltIn(kind) {
+      mySpriteKind = kind;
+      if (myPetName === "Alfie" || myPetName === "Teddy") {
+        myPetName = kind === "alfie" ? "Alfie" : "Teddy";
+        document.getElementById("petNameInput").value = myPetName;
+      }
+      document.getElementById("petAlfie").classList.toggle("active", kind === "alfie");
+      document.getElementById("petTeddy").classList.toggle("active", kind === "teddy");
+      updateUI();
+      broadcastMyState(true);
+    }
+
+    function importCustomSheet(ev) {
+      const file = ev.target.files && ev.target.files[0];
+      if (!file) return;
+      const img = new Image();
+      img.onload = () => {
+        SHEETS.custom = img;
+        mySpriteKind = "custom";
+        if (myPetName === "Alfie" || myPetName === "Teddy") {
+          myPetName = "Buddy";
+          document.getElementById("petNameInput").value = myPetName;
+        }
+        document.getElementById("petAlfie").classList.remove("active");
+        document.getElementById("petTeddy").classList.remove("active");
+        updateUI();
+        broadcastMyState(true);
+      };
+      img.src = URL.createObjectURL(file);
+    }
+
+    function onPetNameEdited() {
+      myPetName = sanitizeText(document.getElementById("petNameInput").value, 18) || "Pup";
+      updateUI();
+      broadcastMyState(false);
+    }
+
+    function renderActionButtons() {
+      const grid = document.getElementById("actionsGrid");
+      grid.innerHTML = "";
+      ACTIONS.forEach(a => {
+        const btn = document.createElement("button");
+        btn.className = "act-btn" + (myAction === a.key ? " active" : "");
+        btn.innerHTML = `<span>${a.emoji} ${a.title}</span><span style="font-size:11px;color:var(--muted);">${pairCode ? "Sync Both" : "My Pet"}</span>`;
+        btn.onclick = () => triggerMyAction(a.key);
+        grid.appendChild(btn);
+      });
+    }
+
+    function triggerMyAction(actionKey) {
+      myAction = actionKey;
+      updateUI();
+      renderActionButtons();
+      broadcastMyState(true);
+    }
+
+    function updateUI() {
+      const myEffectiveAct = activeRare ? RARE_KINDS[activeRare.kind].myAct : myAction;
+      const myMeta = getActionMeta(myEffectiveAct);
+      document.getElementById("myIslandLabel").textContent = `${myPetName} ${myMeta.emoji}`;
+
+      const hasTwo = !!(pairCode && partnerPet);
+      document.getElementById("partnerExpandedSlot").style.display = hasTwo ? "flex" : "none";
+      document.getElementById("compactPartnerCanvas").style.display = hasTwo ? "block" : "none";
+      document.getElementById("compactEmoji").style.display = hasTwo ? "none" : "inline";
+      document.getElementById("compactEmoji").textContent = myMeta.emoji;
+
+      if (hasTwo) {
+        const pEffectiveAct = activeRare ? RARE_KINDS[activeRare.kind].partnerAct : partnerPet.action;
+        const pMeta = getActionMeta(pEffectiveAct);
+        document.getElementById("partnerIslandLabel").textContent = `${partnerPet.name} ${pMeta.emoji}`;
+
+        if (activeRare) {
+          document.getElementById("islandTitle").textContent = "✨ " + RARE_KINDS[activeRare.kind].title;
+          document.getElementById("islandSub").textContent = `${myPetName} & ${partnerPet.name} are interacting!`;
+        } else if (partnerMessage) {
+          document.getElementById("islandTitle").textContent = `💬 ${partnerPet.name}`;
+          document.getElementById("islandSub").textContent = `“${partnerMessage}”`;
+        } else {
+          document.getElementById("islandTitle").textContent = `${myPetName} & ${partnerPet.name}`;
+          document.getElementById("islandSub").textContent = `${partnerPet.name} ${pMeta.phrase}`;
+        }
+      } else {
+        document.getElementById("islandTitle").textContent = `${myPetName} ${myMeta.phrase}`;
+        document.getElementById("islandSub").textContent = "Pair to show both dogs on the Island!";
+      }
+
+      const notif = document.getElementById("notifBanner");
+      if (hasTwo && partnerMessage) {
+        notif.style.display = "block";
+        document.getElementById("notifTitle").textContent = `🐾 ${partnerPet.name} (${partnerOwner || "Partner"})`;
+        document.getElementById("notifBody").textContent = `“${partnerMessage}”`;
+      } else {
+        notif.style.display = "none";
+      }
     }
 
     function generateCode() {
@@ -544,14 +572,14 @@
     }
 
     async function deriveTopic(code) {
-      const data = new TextEncoder().encode("islandpup-topic-v2:" + normalizeCode(code));
+      const data = new TextEncoder().encode("islandpup-topic-v3:" + normalizeCode(code));
       const digest = await crypto.subtle.digest("SHA-256", data);
       const hex = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, "0")).join("");
       return "islandpup-" + hex.slice(0, 24);
     }
 
     async function deriveAesKey(code) {
-      const data = new TextEncoder().encode("islandpup-aesgcm-v2:" + normalizeCode(code));
+      const data = new TextEncoder().encode("islandpup-aesgcm-v3:" + normalizeCode(code));
       const keyBytes = await crypto.subtle.digest("SHA-256", data);
       return crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["encrypt", "decrypt"]);
     }
@@ -567,11 +595,11 @@
       combined.set(new Uint8Array(cipherBuf), nonce.length);
       let binary = "";
       for (let i = 0; i < combined.length; i++) binary += String.fromCharCode(combined[i]);
-      return "v2:" + btoa(binary);
+      return "v3:" + btoa(binary);
     }
 
     async function decryptWire(text, code) {
-      if (typeof text !== "string" || text.length > 2048 || !text.startsWith("v2:")) return null;
+      if (typeof text !== "string" || text.length > 3900 || !text.startsWith("v3:")) return null;
       const binary = atob(text.slice(3));
       const combined = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) combined[i] = binary.charCodeAt(i);
@@ -584,111 +612,125 @@
     }
 
     async function connectPair() {
-      const raw = document.getElementById("pairCodeInput").value;
-      const clean = normalizeCode(raw);
+      const clean = normalizeCode(document.getElementById("pairCodeInput").value);
       if (!clean) return;
       if (clean !== pairCode) lastAppliedSentAt = 0;
       pairCode = clean;
       document.getElementById("pairCodeInput").value = clean;
+      renderActionButtons();
 
       if (eventSource) eventSource.close();
       const topic = await deriveTopic(clean);
       document.getElementById("connDot").className = "dot live";
       document.getElementById("connText").textContent = "Room " + clean;
-      setTarget("partner");
 
       eventSource = new EventSource(`https://ntfy.sh/${topic}/sse`);
       eventSource.onmessage = async (ev) => {
         try {
-          if (!ev.data || ev.data.length > 4096) return;
+          if (!ev.data || ev.data.length > 8192) return;
           const outer = JSON.parse(ev.data);
           const wire = await decryptWire(outer.message || "", pairCode);
           if (wire) handleWire(wire);
         } catch (_) {}
       };
-      publishStatus();
+      broadcastMyState(false);
     }
 
-    async function postWire(payload) {
+    async function broadcastMyState(isExplicit) {
       if (!pairCode) return;
       const topic = await deriveTopic(pairCode);
+      const note = sanitizeText(document.getElementById("noteInput").value, 72) || null;
+      const builtIn = (mySpriteKind === "alfie" || mySpriteKind === "teddy") ? mySpriteKind : "alfie";
+      const payload = {
+        kind: "pet_state",
+        senderDeviceId: deviceId,
+        senderOwnerName: sanitizeText(document.getElementById("myNameInput").value, 20) || "Web",
+        petSnapshot: {
+          id: "web-pet",
+          name: myPetName,
+          builtInCharacter: builtIn,
+          colorPreset: builtIn === "teddy" ? "periwinkleBlue" : "sunsetOrange",
+          action: myAction
+        },
+        message: note,
+        isExplicitUpdate: !!isExplicit,
+        sentAt: Date.now() / 1000
+      };
       const body = await encryptWire(payload, pairCode);
-      await fetch(`https://ntfy.sh/${topic}`, {
-        method: "POST",
-        body
-      });
-    }
-
-    async function sendToPartner(actionKey, note = null) {
-      partnerAction = actionKey;
-      renderActionButtons();
-      const cleanNote = note ? sanitizeText(note, 32) : null;
-      await postWire({
-        kind: "set_action",
-        senderDeviceId: deviceId,
-        senderName: sanitizeText(document.getElementById("myNameInput").value, 20) || "Friend",
-        senderCharacter: myCharacter,
-        senderCurrentAction: myAction,
-        targetAction: actionKey,
-        note: cleanNote || null,
-        sentAt: Date.now() / 1000
-      });
-    }
-
-    async function publishStatus() {
-      if (!pairCode) return;
-      await postWire({
-        kind: "status",
-        senderDeviceId: deviceId,
-        senderName: sanitizeText(document.getElementById("myNameInput").value, 20) || "Friend",
-        senderCharacter: myCharacter,
-        senderCurrentAction: myAction,
-        sentAt: Date.now() / 1000
-      });
+      await fetch(`https://ntfy.sh/${topic}`, { method: "POST", body });
     }
 
     function handleWire(wire) {
       if (!wire || wire.senderDeviceId === deviceId) return;
       const nowSec = Date.now() / 1000;
       if (typeof wire.sentAt !== "number" || wire.sentAt > nowSec + 300 || wire.sentAt < nowSec - 86400) return;
-      if (wire.senderCharacter !== "alfie" && wire.senderCharacter !== "teddy") return;
-      const safeSender = sanitizeText(wire.senderName, 20) || "Partner";
-      partnerPet = wire.senderCharacter;
-      if (wire.kind === "status") {
-        partnerAction = wire.senderCurrentAction;
-        const pMeta = getActionMeta(partnerAction);
-        document.getElementById("partnerStatusLine").textContent =
-          `Linked with ${safeSender}'s ${partnerPet === "alfie" ? "Alfie" : "Teddy"} (${pMeta.emoji} ${pMeta.title})`;
-        renderActionButtons();
-      } else if (wire.kind === "set_action" && wire.targetAction && wire.sentAt > lastAppliedSentAt) {
-        lastAppliedSentAt = wire.sentAt;
-        const safeNote = wire.note ? sanitizeText(wire.note, 32) : null;
-        applyLocalAction(wire.targetAction, safeSender, safeNote);
+
+      if (wire.kind === "rare_interaction" && wire.rareInteraction && RARE_KINDS[wire.rareInteraction.kind]) {
+        activeRare = wire.rareInteraction;
+        updateUI();
+        setTimeout(() => {
+          if (activeRare && activeRare.id === wire.rareInteraction.id) {
+            activeRare = null;
+            updateUI();
+          }
+        }, Math.max(1000, (wire.rareInteraction.expiresAt - nowSec) * 1000));
+        return;
+      }
+
+      if (wire.sentAt < lastAppliedSentAt) return;
+      const wasUnlinked = !partnerPet;
+      lastAppliedSentAt = wire.sentAt;
+      partnerOwner = sanitizeText(wire.senderOwnerName, 20) || "Partner";
+      const snap = wire.petSnapshot || {};
+      partnerPet = {
+        name: sanitizeText(snap.name, 18) || "Partner Pup",
+        builtInCharacter: snap.builtInCharacter === "teddy" ? "teddy" : "alfie",
+        action: snap.action || "idle"
+      };
+      partnerMessage = wire.message ? sanitizeText(wire.message, 72) : null;
+      document.getElementById("partnerStatusLine").textContent =
+        `Connected with ${partnerPet.name} (${partnerOwner}) — both dogs are now on the Dynamic Island!`;
+      updateUI();
+      if (wasUnlinked) broadcastMyState(false);
+    }
+
+    function drawDog(ctx, sheet, actionKey, tick) {
+      if (!sheet || !sheet.complete || !sheet.naturalWidth) return;
+      const meta = getActionMeta(actionKey);
+      const cellW = Math.floor(sheet.naturalWidth / 8) || sheet.naturalWidth;
+      const cellH = Math.floor(sheet.naturalHeight / 9) || sheet.naturalHeight;
+      const col = meta.cols[tick % meta.cols.length];
+      ctx.clearRect(0, 0, 192, 208);
+      if (sheet.naturalWidth >= 128 && sheet.naturalHeight >= 144) {
+        ctx.drawImage(sheet, col * cellW, meta.row * cellH, cellW, cellH, 0, 0, 192, 208);
+      } else {
+        ctx.drawImage(sheet, 0, 0, sheet.naturalWidth, sheet.naturalHeight, 0, 0, 192, 208);
       }
     }
 
-    let frameCursor = 0;
-    let lastFrameTime = 0;
+    let tick = 0;
+    let lastTs = 0;
     function animate(ts) {
-      const meta = getActionMeta(myAction);
-      const interval = 1000 / meta.fps;
-      if (ts - lastFrameTime >= interval) {
-        lastFrameTime = ts;
-        const sheet = SHEETS[myCharacter];
-        if (sheet && sheet.complete && sheet.naturalWidth) {
-          const col = meta.cols[frameCursor % meta.cols.length];
-          compactCtx.clearRect(0, 0, 192, 208);
-          compactCtx.drawImage(sheet, col * 192, meta.row * 208, 192, 208, 0, 0, 192, 208);
-          expandedCtx.clearRect(0, 0, 192, 208);
-          expandedCtx.drawImage(sheet, col * 192, meta.row * 208, 192, 208, 0, 0, 192, 208);
-          frameCursor = (frameCursor + 1) % meta.cols.length;
+      if (ts - lastTs >= 150) {
+        lastTs = ts;
+        tick++;
+        const mySheet = mySpriteKind === "custom" ? SHEETS.custom : SHEETS[mySpriteKind];
+        const myAct = activeRare ? RARE_KINDS[activeRare.kind].myAct : myAction;
+        drawDog(compactMyCtx, mySheet, myAct, tick);
+        drawDog(expandedMyCtx, mySheet, myAct, tick);
+
+        if (pairCode && partnerPet) {
+          const pSheet = SHEETS[partnerPet.builtInCharacter] || SHEETS.teddy;
+          const pAct = activeRare ? RARE_KINDS[activeRare.kind].partnerAct : partnerPet.action;
+          drawDog(compactPartnerCtx, pSheet, pAct, tick);
+          drawDog(expandedPartnerCtx, pSheet, pAct, tick);
         }
       }
       requestAnimationFrame(animate);
     }
 
-    updateIslandHeader();
     renderActionButtons();
+    updateUI();
     requestAnimationFrame(animate);
   </script>
 </body>

@@ -33,6 +33,7 @@ struct IslandPupApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        NotificationManager.shared.configureAndRequestPermission()
         Self.registerBackgroundRefresh()
     }
 

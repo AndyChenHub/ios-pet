@@ -2,31 +2,30 @@ import SwiftUI
 import UIKit
 
 struct ContentView: View {
-    enum ControlTarget: String, CaseIterable {
-        case partner = "Partner's Phone"
-        case mine = "My Phone"
-    }
-
     @ObservedObject var syncService: PairSyncService
     @ObservedObject var islandController: LiveActivityController
 
-    @State private var controlTarget: ControlTarget = .partner
-    @State private var noteText: String = ""
+    @State private var messageInput: String = ""
     @State private var showPairSheet: Bool = false
+    @State private var petSheetMode: AddPetSheet.Mode?
     @State private var didAutoLaunchIsland: Bool = false
 
-    private let quickNoteChips: [(String, PetAction)] = [
-        ("Time for sleep! 🌙", .sleeping),
+    private let quickMoodChips: [(String, PetAction)] = [
+        ("Goodnight! 🌙", .sleeping),
         ("Thinking of u 👋", .waving),
         ("Yay!! 🎉", .jumping),
         ("Deep focus 💻", .working),
-        ("Where are u? ❓", .waiting)
+        ("Waiting for u 💕", .waiting)
     ]
 
     private let gridColumns = [
         GridItem(.flexible(), spacing: 12),
         GridItem(.flexible(), spacing: 12)
     ]
+
+    private var liveSnapshotState: PetActivityAttributes.ContentState {
+        SharedStorage.shared.currentContentState()
+    }
 
     var body: some View {
         NavigationStack {
@@ -37,17 +36,19 @@ struct ContentView: View {
                 ScrollView {
                     VStack(spacing: 20) {
                         DynamicIslandPreviewBar(
-                            character: syncService.myCharacter,
-                            action: syncService.myAction,
-                            senderName: syncService.lastSenderName,
-                            note: syncService.lastNote,
+                            state: liveSnapshotState,
                             isLiveOnDeviceIsland: islandController.isRunningOnIsland
                         )
 
+                        if let rare = syncService.activeRareInteraction,
+                           let partnerPet = syncService.partnerPet {
+                            rareInteractionCard(rare: rare, partnerPet: partnerPet)
+                        }
+
                         islandLaunchCard
-                        petPickerSection
-                        pairingStatusCard
-                        actionDeckSection
+                        myPetRosterSection
+                        partnerStatusAndMessageCard
+                        myPetActionDeckSection
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
@@ -63,6 +64,19 @@ struct ContentView: View {
             .navigationTitle("IslandPup")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        petSheetMode = .createNew
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "plus.circle.fill")
+                            Text("New Pet")
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                        }
+                        .foregroundStyle(.white)
+                    }
+                }
+
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showPairSheet = true
@@ -82,8 +96,11 @@ struct ContentView: View {
             .sheet(isPresented: $showPairSheet) {
                 PairSetupSheet(syncService: syncService)
             }
+            .sheet(item: $petSheetMode) { sheetMode in
+                AddPetSheet(mode: sheetMode, syncService: syncService)
+            }
             .onAppear {
-                controlTarget = syncService.pairCode.isEmpty ? .mine : .partner
+                messageInput = syncService.myMessage ?? ""
                 islandController.refreshActiveStatus()
                 if !didAutoLaunchIsland {
                     didAutoLaunchIsland = true
@@ -93,11 +110,6 @@ struct ContentView: View {
                             await islandController.startIsland(with: state)
                         }
                     }
-                }
-            }
-            .onChange(of: syncService.pairCode) { _, newCode in
-                if !newCode.isEmpty {
-                    controlTarget = .partner
                 }
             }
             .onChange(of: syncService.toastMessage) { _, newValue in
@@ -115,21 +127,61 @@ struct ContentView: View {
         .preferredColorScheme(.dark)
     }
 
+    // MARK: - Rare Two-Dog Interaction Banner
+
+    private func rareInteractionCard(rare: RarePetInteraction, partnerPet: IslandPetSnapshot) -> some View {
+        HStack(spacing: 12) {
+            Text(rare.kind.badgeEmoji)
+                .font(.system(size: 26))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("✨ RARE INTERACTION HAPPENING NOW!")
+                    .font(.system(size: 10, weight: .heavy, design: .rounded))
+                    .tracking(0.6)
+                    .foregroundStyle(Color(red: 1.0, green: 0.75, blue: 0.88))
+
+                Text(rare.kind.descriptionText(myPetName: syncService.myPetProfile.name, partnerPetName: partnerPet.name))
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+            }
+
+            Spacer()
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.pink.opacity(0.20))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .strokeBorder(Color.pink.opacity(0.6), lineWidth: 1.5)
+                )
+        )
+    }
+
     // MARK: - Start / Stop Dynamic Island Card
 
     private var islandLaunchCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let islandTitle: String = {
+            if let partnerPet = syncService.partnerPet, !syncService.pairCode.isEmpty {
+                return islandController.isRunningOnIsland
+                    ? "\(syncService.myPetProfile.name) & \(partnerPet.name) are on your Dynamic Island"
+                    : "Send \(syncService.myPetProfile.name) & \(partnerPet.name) to Dynamic Island"
+            }
+            return islandController.isRunningOnIsland
+                ? "\(syncService.myPetProfile.name) is on your Dynamic Island"
+                : "Send \(syncService.myPetProfile.name) to Dynamic Island"
+        }()
+
+        return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(islandController.isRunningOnIsland
-                         ? "\(syncService.myCharacter.displayName) is on your Dynamic Island"
-                         : "Send \(syncService.myCharacter.displayName) to Dynamic Island")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                    Text(islandTitle)
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
 
                     Text(islandController.isRunningOnIsland
-                         ? "Swipe up to the Home Screen to see \(syncService.myCharacter.displayName) on the Dynamic Island (iOS hides an app's Live Activity while the app itself is open)."
-                         : "Tap Start, then swipe up to the Home Screen or lock your iPhone to see \(syncService.myCharacter.displayName) animate on the Island.")
+                         ? "Swipe up to the Home Screen to see your Island pets (iOS hides an app's Live Activity while the app itself is open)."
+                         : "Tap Start, then swipe up to the Home Screen or lock your iPhone to see your pet on the Island.")
                         .font(.system(size: 12, design: .rounded))
                         .foregroundStyle(.white.opacity(0.68))
                 }
@@ -167,73 +219,140 @@ struct ContentView: View {
         .background(cardBackground)
     }
 
-    // MARK: - 1 Active Pet Selector (Alfie vs Teddy)
+    // MARK: - Select Pet, Rename Pet, or Add Spritesheet
 
-    private var petPickerSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+    private var myPetRosterSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("MY ISLAND PET (1 ACTIVE)")
+                Text("MY PET (SELECT, RENAME OR IMPORT)")
                     .font(.system(size: 11, weight: .heavy, design: .rounded))
                     .tracking(0.7)
                     .foregroundStyle(.white.opacity(0.55))
+
                 Spacer()
-                Text("Tap to switch")
-                    .font(.system(size: 11, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.4))
+
+                Button {
+                    petSheetMode = .editExisting(syncService.myPetProfile)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "pencil")
+                        Text("Rename \(syncService.myPetProfile.name)")
+                    }
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(syncService.myPetProfile.themeColor)
+                }
             }
 
-            HStack(spacing: 12) {
-                ForEach(PetCharacter.allCases) { pet in
-                    let isSelected = syncService.myCharacter == pet
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(syncService.roster) { pet in
+                        let isSelected = syncService.myPetProfile.id == pet.id
+                        Button {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            Task {
+                                await syncService.selectPet(pet)
+                            }
+                        } label: {
+                            VStack(spacing: 8) {
+                                ZStack {
+                                    Circle()
+                                        .fill(pet.themeColor.opacity(isSelected ? 0.26 : 0.10))
+                                        .frame(width: 74, height: 74)
+
+                                    AnimatedPetSpriteView(
+                                        profile: pet,
+                                        action: isSelected ? syncService.myAction : .idle,
+                                        size: 68,
+                                        driver: .liveTimeline
+                                    )
+                                }
+
+                                VStack(spacing: 2) {
+                                    HStack(spacing: 4) {
+                                        Text(pet.name)
+                                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                                            .foregroundStyle(.white)
+                                            .lineLimit(1)
+                                        if isSelected {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .font(.system(size: 12))
+                                                .foregroundStyle(pet.themeColor)
+                                        }
+                                    }
+                                    Text(pet.isCustom ? "Custom Sheet" : pet.subtitle)
+                                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                                        .foregroundStyle(.white.opacity(0.55))
+                                        .lineLimit(1)
+                                }
+                            }
+                            .frame(width: 128)
+                            .padding(.vertical, 13)
+                            .padding(.horizontal, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                    .fill(isSelected ? pet.themeColor.opacity(0.15) : Color.white.opacity(0.05))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                            .strokeBorder(
+                                                isSelected ? pet.themeColor.opacity(0.85) : Color.white.opacity(0.09),
+                                                lineWidth: isSelected ? 2 : 1
+                                            )
+                                    )
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .overlay(alignment: .topTrailing) {
+                            Button {
+                                petSheetMode = .editExisting(pet)
+                            } label: {
+                                Image(systemName: "pencil.circle.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundStyle(Color.white.opacity(0.88), Color.black.opacity(0.55))
+                                    .padding(8)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    // Add New Spritesheet Pet Card
                     Button {
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        Task {
-                            await syncService.selectCharacter(pet)
-                        }
+                        petSheetMode = .createNew
                     } label: {
                         VStack(spacing: 8) {
                             ZStack {
                                 Circle()
-                                    .fill(pet.themeColor.opacity(isSelected ? 0.26 : 0.10))
-                                    .frame(width: 78, height: 78)
+                                    .fill(Color.white.opacity(0.08))
+                                    .frame(width: 74, height: 74)
+                                    .overlay(
+                                        Circle()
+                                            .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                                            .foregroundStyle(.white.opacity(0.35))
+                                    )
 
-                                AnimatedPetSpriteView(
-                                    character: pet,
-                                    action: isSelected ? syncService.myAction : .idle,
-                                    size: 72,
-                                    driver: .liveTimeline
-                                )
+                                Image(systemName: "plus.viewfinder")
+                                    .font(.system(size: 26, weight: .bold))
+                                    .foregroundStyle(.white.opacity(0.85))
                             }
 
                             VStack(spacing: 2) {
-                                HStack(spacing: 4) {
-                                    Text(pet.displayName)
-                                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                                        .foregroundStyle(.white)
-                                    if isSelected {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .font(.system(size: 13))
-                                            .foregroundStyle(pet.themeColor)
-                                    }
-                                }
-                                Text(pet.breedSubtitle)
-                                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                                    .foregroundStyle(.white.opacity(0.58))
-                                    .lineLimit(1)
+                                Text("Add Sheet")
+                                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.white)
+                                Text("Create New Pet")
+                                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                                    .foregroundStyle(.white.opacity(0.55))
                             }
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .padding(.horizontal, 10)
+                        .frame(width: 124)
+                        .padding(.vertical, 13)
+                        .padding(.horizontal, 8)
                         .background(
                             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                .fill(isSelected ? pet.themeColor.opacity(0.14) : Color.white.opacity(0.05))
+                                .fill(Color.white.opacity(0.04))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                        .strokeBorder(
-                                            isSelected ? pet.themeColor.opacity(0.85) : Color.white.opacity(0.09),
-                                            lineWidth: isSelected ? 2 : 1
-                                        )
+                                        .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
                                 )
                         )
                     }
@@ -243,21 +362,20 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Phone-to-Phone Pairing Card
+    // MARK: - Partner Connection & Incoming Partner Message Card
 
-    private var pairingStatusCard: some View {
+    private var partnerStatusAndMessageCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 ZStack {
                     Circle()
                         .fill(statusDotColor.opacity(0.18))
-                        .frame(width: 44, height: 44)
+                        .frame(width: 48, height: 48)
 
-                    if let partnerPet = syncService.partnerCharacter {
+                    if let partnerPet = syncService.partnerPet {
                         AnimatedPetSpriteView(
-                            character: partnerPet,
-                            action: syncService.partnerAction ?? .idle,
-                            size: 40,
+                            pet: partnerPet,
+                            size: 42,
                             driver: .liveTimeline
                         )
                     } else {
@@ -298,6 +416,35 @@ struct ContentView: View {
                         )
                 }
             }
+
+            if let partnerPet = syncService.partnerPet,
+               let partnerMsg = syncService.partnerMessage,
+               !partnerMsg.isEmpty {
+                HStack(spacing: 9) {
+                    Image(systemName: "message.badge.filled.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(partnerPet.themeColor)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(partnerPet.name.uppercased())'S MESSAGE")
+                            .font(.system(size: 10, weight: .heavy, design: .rounded))
+                            .foregroundStyle(partnerPet.themeColor)
+                        Text("“\(partnerMsg)”")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                    }
+                    Spacer()
+                }
+                .padding(11)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(partnerPet.themeColor.opacity(0.16))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .strokeBorder(partnerPet.themeColor.opacity(0.42), lineWidth: 1)
+                        )
+                )
+            }
         }
         .padding(15)
         .background(cardBackground)
@@ -316,16 +463,16 @@ struct ContentView: View {
     private var pairingHeadline: String {
         switch syncService.connectionStatus {
         case .unpaired:
-            return "Connect with Another iPhone"
+            return "Connect with Partner's iPhone"
         case .connecting:
             return "Connecting Room \(syncService.pairCode)…"
         case .listening:
             return "Room \(syncService.pairCode) Ready"
-        case .partnerLinked(let name):
-            if let pet = syncService.partnerCharacter {
-                return "Linked with \(name)'s \(pet.displayName)"
+        case .partnerLinked(let petName):
+            if let owner = syncService.partnerOwnerName, !owner.isEmpty {
+                return "\(petName) (\(owner)) is Here!"
             }
-            return "Linked with \(name)"
+            return "\(petName) is Connected!"
         case .error(let msg):
             return msg
         }
@@ -334,66 +481,37 @@ struct ContentView: View {
     private var pairingSubheadline: String {
         switch syncService.connectionStatus {
         case .unpaired:
-            return "Link two phones so you can set each other's pet to sleeping, waving, working & more."
+            return "When connected, both dogs live together on the Dynamic Island & occasionally play together!"
         case .connecting, .listening:
-            return "Enter code \(syncService.pairCode) on the second phone to control each other's Island."
-        case .partnerLinked:
-            if let act = syncService.partnerAction, let pet = syncService.partnerCharacter {
-                return "\(pet.displayName) on their Island \(act.statusPhrase) \(act.emoji)"
+            return "Enter code \(syncService.pairCode) on your partner's iPhone so both dogs appear on the Island."
+        case .partnerLinked(let petName):
+            if let act = syncService.partnerPet?.action {
+                return "\(petName) \(act.statusPhrase) \(act.emoji) alongside \(syncService.myPetProfile.name)"
             }
-            return "Tap any action below to update their Dynamic Island!"
+            return "Both dogs are sharing the Dynamic Island!"
         case .error:
             return "Tap Manage to verify network or pair code."
         }
     }
 
-    // MARK: - Remote & Local Action Deck
+    // MARK: - My Pet's Action & Message Deck (Changes My Phone + Partner's Phone)
 
-    private var actionDeckSection: some View {
+    private var myPetActionDeckSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("SET PET ACTION")
+            VStack(alignment: .leading, spacing: 3) {
+                Text("SET \(syncService.myPetProfile.name.uppercased())'S ACTION & MESSAGE")
                     .font(.system(size: 11, weight: .heavy, design: .rounded))
                     .tracking(0.7)
                     .foregroundStyle(.white.opacity(0.55))
 
-                Spacer()
-
-                Picker("Target", selection: $controlTarget) {
-                    ForEach(ControlTarget.allCases, id: \.self) { target in
-                        Text(target.rawValue).tag(target)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 220)
+                Text(syncService.pairCode.isEmpty
+                     ? "Updates \(syncService.myPetProfile.name) on your Dynamic Island."
+                     : "Updates \(syncService.myPetProfile.name) on BOTH your Dynamic Island and your partner's phone & notification!")
+                    .font(.system(size: 12, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.6))
             }
 
-            if controlTarget == .partner && syncService.pairCode.isEmpty {
-                Button {
-                    showPairSheet = true
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "link.badge.plus")
-                            .font(.system(size: 16, weight: .bold))
-                        Text("Pair with another iPhone first to control their pet — or switch to “My Phone” to test!")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .multilineTextAlignment(.leading)
-                        Spacer()
-                    }
-                    .foregroundStyle(.white)
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(Color.orange.opacity(0.22))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .strokeBorder(Color.orange.opacity(0.45), lineWidth: 1)
-                            )
-                    )
-                }
-            }
-
-            // Optional note + 1-tap mood chips
+            // Message input + 1-tap mood chips
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     Image(systemName: "bubble.left.and.bubble.right.fill")
@@ -401,17 +519,23 @@ struct ContentView: View {
                         .foregroundStyle(.white.opacity(0.5))
 
                     TextField(
-                        controlTarget == .partner
-                            ? "Optional note for partner's Island (e.g. Goodnight! 🌙)"
-                            : "Optional status note on your Island",
-                        text: $noteText
+                        syncService.pairCode.isEmpty
+                            ? "Status note for \(syncService.myPetProfile.name)…"
+                            : "Message for your partner's notification…",
+                        text: $messageInput
                     )
                     .font(.system(size: 13, design: .rounded))
                     .foregroundStyle(.white)
+                    .onSubmit {
+                        triggerMyAction(syncService.myAction)
+                    }
 
-                    if !noteText.isEmpty {
+                    if !messageInput.isEmpty {
                         Button {
-                            noteText = ""
+                            messageInput = ""
+                            Task {
+                                await syncService.clearMyMessage()
+                            }
                         } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundStyle(.white.opacity(0.45))
@@ -427,11 +551,11 @@ struct ContentView: View {
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach(quickNoteChips, id: \.0) { phrase, suggestedAction in
+                        ForEach(quickMoodChips, id: \.0) { phrase, suggestedAction in
                             Button {
                                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                noteText = phrase
-                                triggerAction(suggestedAction)
+                                messageInput = phrase
+                                triggerMyAction(suggestedAction)
                             } label: {
                                 Text(phrase)
                                     .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -439,8 +563,7 @@ struct ContentView: View {
                                     .padding(.horizontal, 11)
                                     .padding(.vertical, 6)
                                     .background(
-                                        Capsule()
-                                            .fill(.white.opacity(0.10))
+                                        Capsule().fill(.white.opacity(0.10))
                                     )
                             }
                             .buttonStyle(.plain)
@@ -449,23 +572,17 @@ struct ContentView: View {
                 }
             }
 
-            let previewCharacter: PetCharacter = (controlTarget == .partner)
-                ? (syncService.partnerCharacter ?? (syncService.myCharacter == .alfie ? .teddy : .alfie))
-                : syncService.myCharacter
-
             LazyVGrid(columns: gridColumns, spacing: 12) {
                 ForEach(PetAction.allCases) { item in
-                    let isActive = (controlTarget == .partner)
-                        ? (syncService.partnerAction == item)
-                        : (syncService.myAction == item)
+                    let isActive = syncService.myAction == item
 
                     Button {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        triggerAction(item)
+                        triggerMyAction(item)
                     } label: {
                         HStack(spacing: 10) {
                             AnimatedPetSpriteView(
-                                character: previewCharacter,
+                                profile: syncService.myPetProfile,
                                 action: item,
                                 size: 48,
                                 driver: .liveTimeline
@@ -480,7 +597,7 @@ struct ContentView: View {
                                         .foregroundStyle(.white)
                                         .lineLimit(1)
                                 }
-                                Text(controlTarget == .partner ? "Send to Partner" : "Set My Pet")
+                                Text(syncService.pairCode.isEmpty ? "Update My Island" : "Sync Both Phones")
                                     .font(.system(size: 11, weight: .medium, design: .rounded))
                                     .foregroundStyle(.white.opacity(0.52))
                             }
@@ -506,21 +623,13 @@ struct ContentView: View {
         }
     }
 
-    private func triggerAction(_ action: PetAction) {
-        let currentNote = noteText
+    private func triggerMyAction(_ action: PetAction) {
+        let noteToSend = messageInput
         Task {
-            if controlTarget == .partner {
-                if syncService.pairCode.isEmpty {
-                    showPairSheet = true
-                } else {
-                    await syncService.sendActionToPartner(action, note: currentNote)
-                }
-            } else {
-                await syncService.setMyOwnAction(action, note: currentNote)
-                if !islandController.isRunningOnIsland {
-                    let state = SharedStorage.shared.currentContentState()
-                    await islandController.startIsland(with: state)
-                }
+            await syncService.setMyPetAction(action, message: noteToSend)
+            if !islandController.isRunningOnIsland {
+                let state = SharedStorage.shared.currentContentState()
+                await islandController.startIsland(with: state)
             }
         }
     }
