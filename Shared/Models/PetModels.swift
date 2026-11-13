@@ -1168,7 +1168,7 @@ public struct RarePetInteraction: Codable, Hashable, Sendable {
 /// Exposes the stamped IPA semantic version, CI build number, and short commit SHA inside the app UI.
 public enum AppBuildInfo {
     public static var version: String {
-        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "1.2.1"
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "1.2.2"
     }
 
     public static var build: String {

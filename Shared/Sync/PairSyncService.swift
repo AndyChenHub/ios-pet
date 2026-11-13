@@ -17,6 +17,7 @@ public struct PairWireMessage: Codable, Sendable {
     public var senderOwnerName: String?
     public var petSnapshot: IslandPetSnapshot
     public var message: String?
+    public var messageSentAt: TimeInterval?
     public var isExplicitUpdate: Bool
     public var notifyMessage: Bool?
     public var rareInteraction: RarePetInteraction?
@@ -28,6 +29,7 @@ public struct PairWireMessage: Codable, Sendable {
         senderOwnerName: String? = "",
         petSnapshot: IslandPetSnapshot,
         message: String? = nil,
+        messageSentAt: TimeInterval? = nil,
         isExplicitUpdate: Bool = false,
         notifyMessage: Bool? = nil,
         rareInteraction: RarePetInteraction? = nil,
@@ -38,6 +40,7 @@ public struct PairWireMessage: Codable, Sendable {
         self.senderOwnerName = senderOwnerName
         self.petSnapshot = petSnapshot
         self.message = message
+        self.messageSentAt = messageSentAt
         self.isExplicitUpdate = isExplicitUpdate
         self.notifyMessage = notifyMessage
         self.rareInteraction = rareInteraction
@@ -135,6 +138,9 @@ public final class PairSyncService: ObservableObject {
     private var rareRollTask: Task<Void, Never>?
     private var rareExpiryTask: Task<Void, Never>?
     private var soloQuirkExpiryTask: Task<Void, Never>?
+    private var messageExpiryTask: Task<Void, Never>?
+    private var myMessageSentAt: TimeInterval?
+    private var partnerMessageSentAt: TimeInterval?
     private var backgroundStreamToken: BackgroundWorkToken?
     private var isStreamConnected: Bool = false
     private var processedEnvelopeIDs: Set<String> = []
@@ -163,12 +169,14 @@ public final class PairSyncService: ObservableObject {
         self.myPetProfile = currentProfile
         self.myAction = SharedStorage.shared.myAction
         self.myMessage = SharedStorage.shared.myMessage
+        self.myMessageSentAt = SharedStorage.shared.myMessageSentAt
         self.myName = SharedStorage.shared.myName
         self.pairCode = SharedStorage.shared.pairCode
         self.relayBaseURL = SharedStorage.shared.relayBaseURL
         self.partnerOwnerName = SharedStorage.shared.partnerOwnerName
         self.partnerPet = SharedStorage.shared.partnerPet
         self.partnerMessage = SharedStorage.shared.partnerMessage
+        self.partnerMessageSentAt = SharedStorage.shared.partnerMessageSentAt
         self.activeRareInteraction = SharedStorage.shared.rareInteraction
         self.activeSoloQuirk = SharedStorage.shared.soloQuirk
 
@@ -179,6 +187,7 @@ public final class PairSyncService: ObservableObject {
         if let quirk = activeSoloQuirk {
             scheduleSoloQuirkExpiry(quirk)
         }
+        scheduleNextMessageExpiry()
     }
 
     // MARK: - Key Derivation & End-to-End Encryption (AES-256-GCM)
@@ -270,13 +279,18 @@ public final class PairSyncService: ObservableObject {
 
     /// Lightweight in-memory snapshot for the in-app Dynamic Island preview (zero UserDefaults or JSON encoding).
     public var inAppPreviewState: PetActivityAttributes.ContentState {
+        let now = Date().timeIntervalSince1970
         let paired = !pairCode.isEmpty
-        let activeRare = paired && partnerPet != nil && (activeRareInteraction?.isActive() == true)
+        let activeRare = paired && partnerPet != nil && (activeRareInteraction?.isActive(at: now) == true)
             ? activeRareInteraction
             : nil
-        let activeQuirk = activeRare == nil && (activeSoloQuirk?.isActive() == true)
+        let activeQuirk = activeRare == nil && (activeSoloQuirk?.isActive(at: now) == true)
             ? activeSoloQuirk
             : nil
+        let myMsgExp = myMessageSentAt.map { $0 + SharedStorage.messageTTL }
+        let validMyMsg = (myMessage != nil && (myMsgExp == nil || now < myMsgExp!)) ? myMessage : nil
+        let partnerMsgExp = partnerMessageSentAt.map { $0 + SharedStorage.messageTTL }
+        let validPartnerMsg = (partnerMessage != nil && (partnerMsgExp == nil || now < partnerMsgExp!)) ? partnerMessage : nil
         let myPreviewPet = IslandPetSnapshot(
             id: myPetProfile.id,
             name: myPetProfile.name,
@@ -288,11 +302,13 @@ public final class PairSyncService: ObservableObject {
         )
         return PetActivityAttributes.ContentState(
             myPet: myPreviewPet,
-            myMessage: myMessage,
+            myMessage: validMyMsg,
+            myMessageExpiresAt: validMyMsg != nil ? myMsgExp : nil,
             isPaired: paired,
             partnerPet: partnerPet,
             partnerOwnerName: partnerOwnerName,
-            partnerMessage: partnerMessage,
+            partnerMessage: validPartnerMsg,
+            partnerMessageExpiresAt: validPartnerMsg != nil ? partnerMsgExp : nil,
             rareInteraction: activeRare,
             soloQuirk: activeQuirk,
             anchorTimestamp: storage.stableAnchorTimestamp()
@@ -432,8 +448,10 @@ public final class PairSyncService: ObservableObject {
             myAction = optionalAction
             storage.myAction = optionalAction
         }
+        storage.setMyMessage(cleaned, sentAt: now)
         myMessage = cleaned
-        storage.myMessage = cleaned
+        myMessageSentAt = now
+        scheduleNextMessageExpiry()
         if storage.isPaired {
             clearSoloQuirkLocally()
         }
@@ -492,11 +510,19 @@ public final class PairSyncService: ObservableObject {
     }
 
     public func clearMyMessage() async {
+        storage.setMyMessage(nil)
         myMessage = nil
-        storage.myMessage = nil
+        myMessageSentAt = nil
+        scheduleNextMessageExpiry()
         await pushStateToActiveLiveActivities()
         if storage.isPaired {
             _ = await broadcastMyPetState(isExplicitUpdate: false, notifyMessage: false)
+        }
+    }
+
+    public func purgeExpiredMessagesAndRefreshIsland() async {
+        if purgeExpiredMessagesIfNeeded() {
+            await pushStateToActiveLiveActivities()
         }
     }
 
@@ -528,7 +554,9 @@ public final class PairSyncService: ObservableObject {
             partnerOwnerName = nil
             partnerPet = nil
             partnerMessage = nil
+            partnerMessageSentAt = nil
             activeRareInteraction = nil
+            scheduleNextMessageExpiry()
         }
 
         stopRealtimeListeners()
@@ -542,6 +570,7 @@ public final class PairSyncService: ObservableObject {
     /// Ensures paired devices stay seamlessly linked on launch and across in-place IPA updates.
     public func handleAppBecameActive() async {
         endBackgroundStreamGracePeriod()
+        _ = purgeExpiredMessagesIfNeeded()
         let didUpgradeSchema = storage.consumeDidUpgradeSchemaIfNeeded()
         if didUpgradeSchema {
             reloadFromStorage()
@@ -609,8 +638,10 @@ public final class PairSyncService: ObservableObject {
         partnerOwnerName = nil
         partnerPet = nil
         partnerMessage = nil
+        partnerMessageSentAt = nil
         activeRareInteraction = nil
         connectionStatus = .unpaired
+        scheduleNextMessageExpiry()
         await pushStateToActiveLiveActivities()
     }
 
@@ -1007,12 +1038,14 @@ public final class PairSyncService: ObservableObject {
         guard event.isActive(at: now), let partnerPet else { return }
 
         if broadcastToPartner {
+            _ = purgeExpiredMessagesIfNeeded()
             let wire = PairWireMessage(
                 kind: .rareInteraction,
                 senderDeviceId: storage.deviceId,
                 senderOwnerName: "",
                 petSnapshot: myPetSnapshot,
                 message: myMessage,
+                messageSentAt: myMessage != nil ? myMessageSentAt : nil,
                 isExplicitUpdate: false,
                 rareInteraction: event
             )
@@ -1096,6 +1129,51 @@ public final class PairSyncService: ObservableObject {
         }
     }
 
+    @discardableResult
+    private func purgeExpiredMessagesIfNeeded() -> Bool {
+        var didPurge = false
+
+        let storedMyMsg = storage.myMessage
+        if myMessage != storedMyMsg {
+            myMessage = storedMyMsg
+            didPurge = true
+        }
+        myMessageSentAt = storedMyMsg != nil ? storage.myMessageSentAt : nil
+
+        let storedPartnerMsg = storage.partnerMessage
+        if partnerMessage != storedPartnerMsg {
+            partnerMessage = storedPartnerMsg
+            didPurge = true
+        }
+        partnerMessageSentAt = storedPartnerMsg != nil ? storage.partnerMessageSentAt : nil
+
+        scheduleNextMessageExpiry()
+        return didPurge
+    }
+
+    private func scheduleNextMessageExpiry() {
+        messageExpiryTask?.cancel()
+        messageExpiryTask = nil
+
+        let now = Date().timeIntervalSince1970
+        let candidates = [
+            myMessage != nil ? myMessageSentAt.map { $0 + SharedStorage.messageTTL } : nil,
+            partnerMessage != nil ? partnerMessageSentAt.map { $0 + SharedStorage.messageTTL } : nil
+        ]
+        .compactMap { $0 }
+
+        guard let earliest = candidates.min() else { return }
+        let remaining = max(0.5, earliest - now + 0.3)
+
+        messageExpiryTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
+            guard !Task.isCancelled, let self else { return }
+            if self.purgeExpiredMessagesIfNeeded() {
+                await self.pushStateToActiveLiveActivities()
+            }
+        }
+    }
+
     // MARK: - Broadcasting & Incremental Catch-up Polling
 
     @discardableResult
@@ -1105,6 +1183,7 @@ public final class PairSyncService: ObservableObject {
         piggybackedRare: RarePetInteraction? = nil
     ) async -> Bool {
         guard storage.isPaired else { return false }
+        _ = purgeExpiredMessagesIfNeeded()
         let now = Date().timeIntervalSince1970
         let effectiveRare = piggybackedRare ?? (
             activeRareInteraction?.isActive(at: now) == true ? activeRareInteraction : nil
@@ -1115,6 +1194,7 @@ public final class PairSyncService: ObservableObject {
             senderOwnerName: "",
             petSnapshot: myPetSnapshot,
             message: myMessage,
+            messageSentAt: myMessage != nil ? myMessageSentAt : nil,
             isExplicitUpdate: isExplicitUpdate,
             notifyMessage: notifyMessage,
             rareInteraction: effectiveRare
@@ -1123,11 +1203,17 @@ public final class PairSyncService: ObservableObject {
     }
 
     public func pollLatestMessages() async {
+        let prevMyMessage = myMessage
+        let prevPartnerMessage = partnerMessage
         reloadFromStorage()
+        let purgedOnReload = (prevMyMessage != myMessage) || (prevPartnerMessage != partnerMessage)
         let lastServerTime = storage.lastRelayEnvelopeTime
         let sinceParam = lastServerTime > 0 ? "\(max(1, lastServerTime - 2))" : "12h"
         guard let base = activeTopicURLString,
               let pollURL = URL(string: "\(base)/json?poll=1&since=\(sinceParam)") else {
+            if purgedOnReload {
+                await pushStateToActiveLiveActivities()
+            }
             return
         }
 
@@ -1139,13 +1225,16 @@ public final class PairSyncService: ObservableObject {
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
                   data.count <= 262_144,
                   let text = String(data: data, encoding: .utf8) else {
+                if purgedOnReload {
+                    await pushStateToActiveLiveActivities()
+                }
                 return
             }
 
             let wasFirstPartnerLink = (partnerPet == nil)
             let lines = text.split(whereSeparator: \.isNewline)
             var latestAlertBody: String?
-            var didChange = false
+            var didChange = purgedOnReload
 
             for sub in lines {
                 let outcome = await processEnvelopeJSONLine(String(sub))
@@ -1293,15 +1382,48 @@ public final class PairSyncService: ObservableObject {
         storage.lastAppliedRemoteSentAt = wire.sentAt
 
         let safeSnapshot = Self.sanitizeIncomingSnapshot(wire.petSnapshot)
-        let safeMessage = Self.cleanOptionalMessage(wire.message)
+        let rawCleanMessage = Self.cleanOptionalMessage(wire.message)
+
+        let safeMessage: String?
+        let resolvedMsgSentAt: TimeInterval?
+        if let candidateMsg = rawCleanMessage {
+            let inferredSentAt: TimeInterval
+            if let explicitMsgAt = wire.messageSentAt, explicitMsgAt > 0 {
+                inferredSentAt = min(explicitMsgAt, now + Self.maxFutureClockSkewSeconds)
+            } else if wire.notifyMessage == true {
+                inferredSentAt = wire.sentAt
+            } else if candidateMsg == partnerMessage, let existingSentAt = partnerMessageSentAt {
+                // Keep original creation timestamp on status-only packets from older app versions
+                inferredSentAt = existingSentAt
+            } else {
+                inferredSentAt = wire.sentAt
+            }
+
+            if now - inferredSentAt < SharedStorage.messageTTL {
+                safeMessage = candidateMsg
+                resolvedMsgSentAt = inferredSentAt
+            } else {
+                safeMessage = nil
+                resolvedMsgSentAt = nil
+            }
+        } else {
+            safeMessage = nil
+            resolvedMsgSentAt = nil
+        }
 
         partnerOwnerName = nil
         partnerPet = safeSnapshot
         partnerMessage = safeMessage
+        partnerMessageSentAt = resolvedMsgSentAt
 
         storage.partnerOwnerName = nil
         storage.partnerPet = safeSnapshot
-        storage.partnerMessage = safeMessage
+        if let safeMessage, let resolvedMsgSentAt {
+            storage.setPartnerMessage(safeMessage, sentAt: resolvedMsgSentAt)
+        } else {
+            storage.setPartnerMessage(nil)
+        }
+        scheduleNextMessageExpiry()
 
         refreshConnectionBadge(connected: true)
 
@@ -1363,13 +1485,16 @@ public final class PairSyncService: ObservableObject {
         myPetProfile = storage.selectedPetProfile
         myAction = storage.myAction
         myMessage = storage.myMessage
+        myMessageSentAt = storage.myMessageSentAt
         myName = storage.myName
         pairCode = storage.pairCode
         partnerOwnerName = storage.partnerOwnerName
         partnerPet = storage.partnerPet
         partnerMessage = storage.partnerMessage
+        partnerMessageSentAt = storage.partnerMessageSentAt
         activeRareInteraction = storage.rareInteraction
         activeSoloQuirk = storage.soloQuirk
+        scheduleNextMessageExpiry()
     }
 
     private func refreshConnectionBadge(connected: Bool = false) {

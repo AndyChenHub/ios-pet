@@ -140,7 +140,7 @@ struct IslandPupLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(spacing: 6) {
                         if interaction != nil,
-                           let partnerMsg = state.partnerMessage,
+                           let partnerMsg = state.activePartnerMessage,
                            !partnerMsg.isEmpty,
                            let partner = partnerDisplayPet {
                             HStack(spacing: 5) {
@@ -331,7 +331,7 @@ struct IslandPupLiveActivity: Widget {
             }
         } else if let partnerPet, state.hasTwoDogs {
             VStack(spacing: 3) {
-                if let partnerMsg = state.partnerMessage, !partnerMsg.isEmpty {
+                if let partnerMsg = state.activePartnerMessage, !partnerMsg.isEmpty {
                     Text("💬 \(partnerPet.name)")
                         .font(.system(size: 10, weight: .heavy, design: .rounded))
                         .foregroundStyle(partnerPet.themeColor)
@@ -370,7 +370,7 @@ struct IslandPupLiveActivity: Widget {
                     .foregroundStyle(.white)
                     .lineLimit(1)
 
-                if let myMsg = state.myMessage, !myMsg.isEmpty {
+                if let myMsg = state.activeMyMessage, !myMsg.isEmpty {
                     Text("“\(myMsg)”")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(.white.opacity(0.78))
@@ -408,7 +408,7 @@ private struct LockScreenPetBannerView: View {
             if let partner = partnerPet, state.hasTwoDogs {
                 twoDogsStageHeader(myPet: myPet, partnerPet: partner, interaction: interaction)
 
-                if let partnerMessage = state.partnerMessage, !partnerMessage.isEmpty {
+                if let partnerMessage = state.activePartnerMessage, !partnerMessage.isEmpty {
                     HStack(spacing: 8) {
                         Image(systemName: "message.fill")
                             .font(.system(size: 12, weight: .bold))
@@ -648,7 +648,7 @@ private struct LockScreenPetBannerView: View {
                         .background(Capsule().fill(myPet.action.accentColor.opacity(0.32)))
                 }
 
-                if let myMsg = state.myMessage, !myMsg.isEmpty {
+                if let myMsg = state.activeMyMessage, !myMsg.isEmpty {
                     Text("“\(myMsg)”")
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(.white.opacity(0.82))

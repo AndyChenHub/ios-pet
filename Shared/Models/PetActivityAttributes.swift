@@ -8,16 +8,20 @@ public struct PetActivityAttributes: ActivityAttributes, Sendable {
     public struct ContentState: Codable, Hashable, Sendable {
         /// This iPhone user's selected pet, custom name, and chosen Emotion/Task.
         public var myPet: IslandPetSnapshot
-        /// Optional status note set by this iPhone's owner.
+        /// Optional status note set by this iPhone's owner (auto-expires after 24 hours).
         public var myMessage: String?
+        /// Unix timestamp when `myMessage` expires (24 hours after creation).
+        public var myMessageExpiresAt: TimeInterval?
         /// Whether this phone is currently connected to a room.
         public var isPaired: Bool
         /// The connected pet (when linked), rendered alongside `myPet` on the Dynamic Island.
         public var partnerPet: IslandPetSnapshot?
         /// Legacy optional nickname field.
         public var partnerOwnerName: String?
-        /// Latest message sent by the connected pet (shown in notifications & Live Activity banner).
+        /// Latest message sent by the connected pet (auto-expires after 24 hours).
         public var partnerMessage: String?
+        /// Unix timestamp when `partnerMessage` expires (24 hours after creation).
+        public var partnerMessageExpiresAt: TimeInterval?
         /// Optional combined two-dog interaction scene triggered by status sync, clash, message, or chaos.
         public var rareInteraction: RarePetInteraction?
         /// Optional temporary solo special quirk (e.g. Snoot Boop, Zoomies, Blep) preserving `myPet.action`.
@@ -28,10 +32,12 @@ public struct PetActivityAttributes: ActivityAttributes, Sendable {
         private enum CodingKeys: String, CodingKey {
             case myPet
             case myMessage
+            case myMessageExpiresAt
             case isPaired
             case partnerPet
             case partnerOwnerName
             case partnerMessage
+            case partnerMessageExpiresAt
             case rareInteraction
             case soloQuirk
             case anchorTimestamp
@@ -40,20 +46,24 @@ public struct PetActivityAttributes: ActivityAttributes, Sendable {
         public init(
             myPet: IslandPetSnapshot,
             myMessage: String? = nil,
+            myMessageExpiresAt: TimeInterval? = nil,
             isPaired: Bool = false,
             partnerPet: IslandPetSnapshot? = nil,
             partnerOwnerName: String? = nil,
             partnerMessage: String? = nil,
+            partnerMessageExpiresAt: TimeInterval? = nil,
             rareInteraction: RarePetInteraction? = nil,
             soloQuirk: SoloPetQuirk? = nil,
             anchorTimestamp: TimeInterval? = nil
         ) {
             self.myPet = myPet
             self.myMessage = myMessage
+            self.myMessageExpiresAt = myMessageExpiresAt
             self.isPaired = isPaired
             self.partnerPet = partnerPet
             self.partnerOwnerName = partnerOwnerName
             self.partnerMessage = partnerMessage
+            self.partnerMessageExpiresAt = partnerMessageExpiresAt
             self.rareInteraction = rareInteraction
             self.soloQuirk = soloQuirk
             if let anchorTimestamp {
@@ -68,10 +78,12 @@ public struct PetActivityAttributes: ActivityAttributes, Sendable {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             self.myPet = try container.decode(IslandPetSnapshot.self, forKey: .myPet)
             self.myMessage = try? container.decodeIfPresent(String.self, forKey: .myMessage)
+            self.myMessageExpiresAt = try? container.decodeIfPresent(TimeInterval.self, forKey: .myMessageExpiresAt)
             self.isPaired = (try? container.decode(Bool.self, forKey: .isPaired)) ?? false
             self.partnerPet = try? container.decodeIfPresent(IslandPetSnapshot.self, forKey: .partnerPet)
             self.partnerOwnerName = try? container.decodeIfPresent(String.self, forKey: .partnerOwnerName)
             self.partnerMessage = try? container.decodeIfPresent(String.self, forKey: .partnerMessage)
+            self.partnerMessageExpiresAt = try? container.decodeIfPresent(TimeInterval.self, forKey: .partnerMessageExpiresAt)
             self.rareInteraction = try? container.decodeIfPresent(RarePetInteraction.self, forKey: .rareInteraction)
             self.soloQuirk = try? container.decodeIfPresent(SoloPetQuirk.self, forKey: .soloQuirk)
             let now = Date().timeIntervalSince1970
@@ -113,9 +125,37 @@ public struct PetActivityAttributes: ActivityAttributes, Sendable {
             hasTwoDogs && myPet.builtInCharacter != nil && partnerPet?.builtInCharacter != nil
         }
 
-        /// Earliest expiry date of any active temporary interaction or quirk for ActivityKit `staleDate`.
+        /// Returns `myMessage` only when non-empty and within its 24-hour lifetime.
+        public var activeMyMessage: String? {
+            guard let myMessage, !myMessage.isEmpty else { return nil }
+            if let exp = myMessageExpiresAt, Date().timeIntervalSince1970 + 1.0 >= exp {
+                return nil
+            }
+            return myMessage
+        }
+
+        /// Returns `partnerMessage` only when non-empty and within its 24-hour lifetime.
+        public var activePartnerMessage: String? {
+            guard let partnerMessage, !partnerMessage.isEmpty else { return nil }
+            if let exp = partnerMessageExpiresAt, Date().timeIntervalSince1970 + 1.0 >= exp {
+                return nil
+            }
+            return partnerMessage
+        }
+
+        /// Earliest upcoming expiry date of any active interaction, quirk, or 24-hour message for ActivityKit `staleDate`.
         public var nextExpiryDate: Date? {
-            let candidates = [activeInteraction?.expiresAt, activeSoloQuirk?.expiresAt].compactMap { $0 }
+            let now = Date().timeIntervalSince1970
+            let myMsgExp = (activeMyMessage != nil) ? myMessageExpiresAt.map { $0 + 0.5 } : nil
+            let partnerMsgExp = (activePartnerMessage != nil) ? partnerMessageExpiresAt.map { $0 + 0.5 } : nil
+            let candidates = [
+                activeInteraction?.expiresAt,
+                activeSoloQuirk?.expiresAt,
+                myMsgExp,
+                partnerMsgExp
+            ]
+            .compactMap { $0 }
+            .filter { $0 > now }
             guard let earliest = candidates.min() else { return nil }
             return Date(timeIntervalSince1970: earliest)
         }

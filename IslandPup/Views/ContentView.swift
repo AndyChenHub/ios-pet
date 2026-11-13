@@ -689,7 +689,7 @@ struct ContentView: View {
 
             if let activeMsg = syncService.myMessage, !activeMsg.isEmpty {
                 HStack(spacing: 6) {
-                    Text("Showing on Island: “\(activeMsg)”")
+                    Text("Showing on Island (24h): “\(activeMsg)”")
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white.opacity(0.72))
                         .lineLimit(1)

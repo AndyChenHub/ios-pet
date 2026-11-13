@@ -76,7 +76,8 @@ struct IslandPupApp: App {
                 // Keep the lightweight SSE listener alive during iOS's Home Screen background grace window
                 // so swiping up to watch the Dynamic Island receives partner updates and synced animations live.
                 syncService.enterBackgroundStreamGracePeriod()
-                if SharedStorage.shared.isPaired && !ProcessInfo.processInfo.isLowPowerModeEnabled {
+                let hasPendingWork = SharedStorage.shared.isPaired || (SharedStorage.shared.myMessage != nil)
+                if hasPendingWork && !ProcessInfo.processInfo.isLowPowerModeEnabled {
                     Self.scheduleBackgroundRefresh()
                 } else {
                     BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.bgRefreshIdentifier)
@@ -101,11 +102,13 @@ struct IslandPupApp: App {
                 return
             }
 
-            if SharedStorage.shared.isPaired && !ProcessInfo.processInfo.isLowPowerModeEnabled {
+            let hasPendingWork = SharedStorage.shared.isPaired || (SharedStorage.shared.myMessage != nil)
+            if hasPendingWork && !ProcessInfo.processInfo.isLowPowerModeEnabled {
                 scheduleBackgroundRefresh()
             }
 
             let workTask = Task { @MainActor in
+                await PairSyncService.shared.purgeExpiredMessagesAndRefreshIsland()
                 if SharedStorage.shared.isPaired {
                     await PairSyncService.shared.pollLatestMessages()
                 }

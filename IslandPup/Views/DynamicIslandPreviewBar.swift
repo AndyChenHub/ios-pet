@@ -370,7 +370,7 @@ struct DynamicIslandPreviewBar: View {
                                 .foregroundStyle(.white.opacity(0.85))
                                 .multilineTextAlignment(.center)
                                 .lineLimit(2)
-                        } else if let partnerMsg = state.partnerMessage, !partnerMsg.isEmpty {
+                        } else if let partnerMsg = state.activePartnerMessage, !partnerMsg.isEmpty {
                             Text("💬 \(partner.name)'s message")
                                 .font(.system(size: 10, weight: .heavy, design: .rounded))
                                 .foregroundStyle(partner.themeColor)
@@ -452,7 +452,7 @@ struct DynamicIslandPreviewBar: View {
                         .background(Capsule().fill(myPet.action.accentColor.opacity(0.32)))
                 }
 
-                if let myMsg = state.myMessage, !myMsg.isEmpty {
+                if let myMsg = state.activeMyMessage, !myMsg.isEmpty {
                     Text("“\(myMsg)”")
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(.white.opacity(0.78))
