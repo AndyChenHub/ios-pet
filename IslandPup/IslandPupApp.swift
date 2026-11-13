@@ -1,28 +1,6 @@
 import BackgroundTasks
+import Foundation
 import SwiftUI
-import UIKit
-
-@MainActor
-private final class AppLifecycleCoordinator {
-    static let shared = AppLifecycleCoordinator()
-    private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
-
-    func beginGraceBackgroundTask() {
-        endGraceBackgroundTask()
-        backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "IslandPupPairSync") { [weak self] in
-            Task { @MainActor in
-                PairSyncService.shared.stopRealtimeListeners()
-                self?.endGraceBackgroundTask()
-            }
-        }
-    }
-
-    func endGraceBackgroundTask() {
-        guard backgroundTaskID != .invalid else { return }
-        UIApplication.shared.endBackgroundTask(backgroundTaskID)
-        backgroundTaskID = .invalid
-    }
-}
 
 @main
 struct IslandPupApp: App {
@@ -47,7 +25,6 @@ struct IslandPupApp: App {
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .active:
-                AppLifecycleCoordinator.shared.endGraceBackgroundTask()
                 islandController.refreshActiveStatus()
                 if SharedStorage.shared.isPaired {
                     syncService.startRealtimeListeners()
@@ -57,11 +34,12 @@ struct IslandPupApp: App {
                 }
 
             case .background:
-                if SharedStorage.shared.isPaired {
+                // Stop live HTTP stream & timers immediately on backgrounding to prevent radio/CPU drain.
+                syncService.stopRealtimeListeners()
+                if SharedStorage.shared.isPaired && !ProcessInfo.processInfo.isLowPowerModeEnabled {
                     Self.scheduleBackgroundRefresh()
-                    AppLifecycleCoordinator.shared.beginGraceBackgroundTask()
                 } else {
-                    syncService.stopRealtimeListeners()
+                    BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.bgRefreshIdentifier)
                 }
 
             case .inactive:
@@ -82,11 +60,15 @@ struct IslandPupApp: App {
                 task.setTaskCompleted(success: false)
                 return
             }
-            scheduleBackgroundRefresh()
+
+            if SharedStorage.shared.isPaired && !ProcessInfo.processInfo.isLowPowerModeEnabled {
+                scheduleBackgroundRefresh()
+            }
 
             let workTask = Task { @MainActor in
-                await PairSyncService.shared.pollLatestMessages()
-                await PairSyncService.shared.pushStateToActiveLiveActivities()
+                if SharedStorage.shared.isPaired {
+                    await PairSyncService.shared.pollLatestMessages()
+                }
                 refreshTask.setTaskCompleted(success: true)
             }
 
@@ -99,7 +81,7 @@ struct IslandPupApp: App {
 
     private static func scheduleBackgroundRefresh() {
         let request = BGAppRefreshTaskRequest(identifier: bgRefreshIdentifier)
-        request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 45 * 60)
         try? BGTaskScheduler.shared.submit(request)
     }
 }

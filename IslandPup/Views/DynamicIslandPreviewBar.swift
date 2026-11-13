@@ -166,7 +166,7 @@ struct DynamicIslandPreviewBar: View {
                 AnimatedPetSpriteView(
                     pet: myPet,
                     size: 28,
-                    driver: .liveTimeline
+                    driver: .widgetStatic
                 )
             }
         }

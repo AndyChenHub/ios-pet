@@ -46,8 +46,13 @@ public final class CustomPetStore: @unchecked Sendable {
     private static let targetCanvasSize = 144
 
     private let fileManager = FileManager.default
-    private let frameCache = NSCache<NSString, NSArray>()
+    private let frameCache: NSCache<NSString, NSArray> = {
+        let cache = NSCache<NSString, NSArray>()
+        cache.countLimit = 48
+        return cache
+    }()
     private var microCache: [String: [String: [Data]]] = [:]
+    private var cachedRoster: [PetProfile]?
     private let lock = NSLock()
 
     private init() {}
@@ -65,10 +70,21 @@ public final class CustomPetStore: @unchecked Sendable {
     // MARK: - Roster Persistence
 
     public func loadRoster() -> [PetProfile] {
+        lock.lock()
+        if let cached = cachedRoster {
+            lock.unlock()
+            return cached
+        }
+        lock.unlock()
+
         if let data = UserDefaults.standard.data(forKey: Self.rosterDefaultsKey),
            let decoded = try? JSONDecoder().decode([PetProfile].self, from: data),
            !decoded.isEmpty {
-            return ensureBuiltInsPresent(in: decoded)
+            let normalized = ensureBuiltInsPresent(in: decoded)
+            lock.lock()
+            cachedRoster = normalized
+            lock.unlock()
+            return normalized
         }
         let initial = [PetProfile.defaultAlfie, PetProfile.defaultTeddy]
         saveRoster(initial)
@@ -77,6 +93,9 @@ public final class CustomPetStore: @unchecked Sendable {
 
     public func saveRoster(_ roster: [PetProfile]) {
         let normalized = ensureBuiltInsPresent(in: roster)
+        lock.lock()
+        cachedRoster = normalized
+        lock.unlock()
         if let data = try? JSONEncoder().encode(normalized) {
             UserDefaults.standard.set(data, forKey: Self.rosterDefaultsKey)
         }

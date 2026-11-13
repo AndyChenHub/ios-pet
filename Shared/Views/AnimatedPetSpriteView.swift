@@ -1,4 +1,5 @@
 import CoreText
+import Foundation
 import SwiftUI
 import UIKit
 
@@ -16,9 +17,9 @@ public struct AnimatedPetSpriteView: View {
     public enum PlaybackDriver: Sendable {
         /// Zero-CPU WidgetKit / Dynamic Island continuous loop with guaranteed visible base frame.
         case widgetTimerGate(anchor: Date)
-        /// Lightweight static single-frame render for the tiny Dynamic Island Minimal bubble.
+        /// Lightweight static single-frame render for Minimal bubble and idle cards.
         case widgetStatic
-        /// High-FPS TimelineView loop for interactive in-app stages and previews.
+        /// Adaptive TimelineView loop for active in-app stages and previews.
         case liveTimeline
     }
 
@@ -33,7 +34,11 @@ public struct AnimatedPetSpriteView: View {
     public var showSleepBadge: Bool
     public var flipHorizontally: Bool
 
+    private let frames: [ResolvedFrame]
+    private let restingFrame: ResolvedFrame
+
     @Environment(\.isLuminanceReduced) private var isLuminanceReduced
+    @Environment(\.scenePhase) private var scenePhase
 
     public init(
         pet: IslandPetSnapshot,
@@ -42,12 +47,22 @@ public struct AnimatedPetSpriteView: View {
         showSleepBadge: Bool = false,
         flipHorizontally: Bool = false
     ) {
-        _ = PetFontRegistrar.registerOnce
+        if case .widgetTimerGate = driver {
+            _ = PetFontRegistrar.registerOnce
+        }
         self.pet = pet
         self.size = size
         self.driver = driver
         self.showSleepBadge = showSleepBadge
         self.flipHorizontally = flipHorizontally
+
+        let resolved = Self.resolveFrames(for: pet, driver: driver)
+        self.frames = resolved
+        if pet.action == .sleeping, resolved.count > 2 {
+            self.restingFrame = resolved[2]
+        } else {
+            self.restingFrame = resolved.first ?? .asset(PetCharacter.alfie.previewAssetName(), crispPixel: false)
+        }
     }
 
     public init(
@@ -58,8 +73,22 @@ public struct AnimatedPetSpriteView: View {
         showSleepBadge: Bool = false,
         flipHorizontally: Bool = false
     ) {
+        let snapshot: IslandPetSnapshot
+        if case .widgetTimerGate = driver {
+            snapshot = CustomPetStore.shared.makeSnapshot(for: profile, action: action)
+        } else {
+            snapshot = IslandPetSnapshot(
+                id: profile.id,
+                name: profile.name,
+                builtInCharacter: profile.builtInCharacter,
+                customSheetID: profile.customSheetID,
+                colorPreset: profile.colorPreset,
+                action: action,
+                customMicroFrames: nil
+            )
+        }
         self.init(
-            pet: CustomPetStore.shared.makeSnapshot(for: profile, action: action),
+            pet: snapshot,
             size: size,
             driver: driver,
             showSleepBadge: showSleepBadge,
@@ -67,13 +96,22 @@ public struct AnimatedPetSpriteView: View {
         )
     }
 
-    private var resolvedFrames: [ResolvedFrame] {
+    private static func resolveFrames(for pet: IslandPetSnapshot, driver: PlaybackDriver) -> [ResolvedFrame] {
         // 1. Built-in high-res bundled character
         if let builtIn = pet.builtInCharacter {
-            return builtIn.frameAssetNames(for: pet.action).map { .asset($0, crispPixel: false) }
+            let names = builtIn.frameAssetNames(for: pet.action)
+            if case .widgetStatic = driver {
+                if pet.action == .sleeping, names.count > 2 {
+                    return names.map { .asset($0, crispPixel: false) }
+                }
+                if let first = names.first {
+                    return [.asset(first, crispPixel: false)]
+                }
+            }
+            return names.map { .asset($0, crispPixel: false) }
         }
 
-        // 2. Local full-res custom spritesheet frames when running inside the main app
+        // 2. Local full-res custom spritesheet frames when animating inside the main app
         if case .liveTimeline = driver, let sheetID = pet.customSheetID {
             let localImages = CustomPetStore.shared.inAppFrames(for: sheetID, action: pet.action)
             if !localImages.isEmpty {
@@ -81,7 +119,7 @@ public struct AnimatedPetSpriteView: View {
             }
         }
 
-        // 3. Decoded compressed micro-frames (Dynamic Island / WidgetExtension / Partner's custom pet)
+        // 3. Decoded compressed micro-frames (Dynamic Island / WidgetExtension / connected custom pet)
         if let blobs = pet.customMicroFrames, !blobs.isEmpty {
             let decoded = blobs.compactMap { MicroSpriteCodec.decodeUIImage(from: $0) }
             if !decoded.isEmpty {
@@ -89,20 +127,42 @@ public struct AnimatedPetSpriteView: View {
             }
         }
 
-        // 4. Safe guaranteed fallback so Dynamic Island is never empty
+        // 4. Static custom pet cards inside the main app (when micro-frames were omitted)
+        if let sheetID = pet.customSheetID {
+            let localImages = CustomPetStore.shared.inAppFrames(for: sheetID, action: pet.action)
+            if !localImages.isEmpty {
+                return localImages.map { .uiImage($0, crispPixel: false) }
+            }
+        }
+
+        // 5. Safe guaranteed fallback so Dynamic Island is never empty
         return PetCharacter.alfie.frameAssetNames(for: pet.action).map { .asset($0, crispPixel: false) }
     }
 
-    private var restingFrame: ResolvedFrame {
-        let list = resolvedFrames
-        if pet.action == .sleeping, list.count > 2 {
-            return list[2]
+    /// Downsamples widget sprite sequences so Compact Dynamic Island, sleeping pets, and Low Power Mode
+    /// use a single 1 Hz whole-second timer mask (zero sub-second GPU wakeups), and Expanded / Lock Screen
+    /// views cap at 4 frames (at most 3 masks instead of 7).
+    private func sampledWidgetFrames(from source: [ResolvedFrame]) -> [ResolvedFrame] {
+        let preferTwoFrameOneHertz = (size <= 30)
+            || (pet.action == .sleeping)
+            || ProcessInfo.processInfo.isLowPowerModeEnabled
+
+        if preferTwoFrameOneHertz || source.count < 4 {
+            let mid = source.count / 2
+            return [source[0], source[mid]]
         }
-        return list.first ?? .asset(PetCharacter.alfie.previewAssetName(), crispPixel: false)
+
+        switch source.count {
+        case 4, 5:
+            return [source[0], source[1], source[2], source[3]]
+        case 6, 7:
+            return [source[0], source[1], source[3], source[4]]
+        default:
+            return [source[0], source[2], source[4], source[6]]
+        }
     }
 
     public var body: some View {
-        let list = resolvedFrames
         ZStack(alignment: .topTrailing) {
             Group {
                 switch driver {
@@ -110,17 +170,24 @@ public struct AnimatedPetSpriteView: View {
                     renderFrame(restingFrame)
 
                 case .widgetTimerGate(let anchor):
-                    if isLuminanceReduced || list.count < 2 {
+                    if isLuminanceReduced || frames.count < 2 {
                         renderFrame(restingFrame)
                     } else {
-                        widgetTwoStackLoop(frames: list, anchor: anchor)
+                        widgetTwoStackLoop(frames: sampledWidgetFrames(from: frames), anchor: anchor)
                     }
 
                 case .liveTimeline:
-                    TimelineView(.periodic(from: .now, by: 1.0 / max(pet.action.inAppFPS, 1.0))) { context in
-                        let rawTick = Int(floor(context.date.timeIntervalSinceReferenceDate * pet.action.inAppFPS))
-                        let idx = ((rawTick % list.count) + list.count) % list.count
-                        renderFrame(list[idx])
+                    if isLuminanceReduced || scenePhase != .active || frames.count < 2 {
+                        renderFrame(restingFrame)
+                    } else {
+                        let effectiveFPS = ProcessInfo.processInfo.isLowPowerModeEnabled
+                            ? min(pet.action.inAppFPS, 3.0)
+                            : pet.action.inAppFPS
+                        TimelineView(.periodic(from: .now, by: 1.0 / max(effectiveFPS, 1.0))) { context in
+                            let rawTick = Int(floor(context.date.timeIntervalSinceReferenceDate * effectiveFPS))
+                            let idx = ((rawTick % frames.count) + frames.count) % frames.count
+                            renderFrame(frames[idx])
+                        }
                     }
                 }
             }

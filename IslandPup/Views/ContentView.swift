@@ -24,7 +24,7 @@ struct ContentView: View {
     ]
 
     private var liveSnapshotState: PetActivityAttributes.ContentState {
-        SharedStorage.shared.currentContentState()
+        syncService.inAppPreviewState
     }
 
     var body: some View {
@@ -267,7 +267,7 @@ struct ContentView: View {
                                         profile: pet,
                                         action: isSelected ? syncService.myAction : .idle,
                                         size: 68,
-                                        driver: .liveTimeline
+                                        driver: isSelected ? .liveTimeline : .widgetStatic
                                     )
                                 }
 
@@ -645,7 +645,7 @@ struct ContentView: View {
                                 profile: syncService.myPetProfile,
                                 action: item,
                                 size: 48,
-                                driver: .liveTimeline
+                                driver: isActive ? .liveTimeline : .widgetStatic
                             )
 
                             VStack(alignment: .leading, spacing: 3) {

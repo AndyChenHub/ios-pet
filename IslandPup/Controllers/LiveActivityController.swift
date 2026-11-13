@@ -47,6 +47,7 @@ final class LiveActivityController: ObservableObject {
                 content: content,
                 pushType: nil
             )
+            PairSyncService.shared.recordPushedState(safeState)
             isRunningOnIsland = true
         } catch {
             statusError = "Couldn't start Dynamic Island pet: \(error.localizedDescription)"
@@ -58,6 +59,7 @@ final class LiveActivityController: ObservableObject {
         for activity in Activity<PetActivityAttributes>.activities {
             await activity.end(nil, dismissalPolicy: .immediate)
         }
+        PairSyncService.shared.recordPushedState(nil)
         isRunningOnIsland = false
     }
 }

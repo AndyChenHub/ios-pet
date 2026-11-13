@@ -60,7 +60,11 @@ public final class PairSyncService: ObservableObject {
     private static let maxCiphertextChars = 3900
     private static let maxFutureClockSkewSeconds: TimeInterval = 300
     private static let maxMessageAgeSeconds: TimeInterval = 86_400
-    private static let rareInteractionCooldown: TimeInterval = 95
+    private static let rareInteractionCooldown: TimeInterval = 180
+
+    private static let cryptoCacheLock = NSLock()
+    private static var cachedTopicPair: (code: String, topic: String)?
+    private static var cachedSymmetricKey: (code: String, key: SymmetricKey)?
 
     public enum ConnectionStatus: Equatable, Sendable {
         case unpaired
@@ -92,12 +96,33 @@ public final class PairSyncService: ObservableObject {
 
     private let storage = SharedStorage.shared
     private let petStore = CustomPetStore.shared
+    private let requestSession: URLSession
+    private let streamSession: URLSession
     private var streamTask: Task<Void, Never>?
-    private var heartbeatPollTask: Task<Void, Never>?
+    private var fallbackPollTask: Task<Void, Never>?
     private var rareRollTask: Task<Void, Never>?
     private var rareExpiryTask: Task<Void, Never>?
+    private var isStreamConnected: Bool = false
+    private var processedEnvelopeIDs: Set<String> = []
+    private var processedEnvelopeOrder: [String] = []
+    private var lastPushedContentState: PetActivityAttributes.ContentState?
 
     private init() {
+        let reqConfig = URLSessionConfiguration.ephemeral
+        reqConfig.timeoutIntervalForRequest = 8
+        reqConfig.timeoutIntervalForResource = 10
+        reqConfig.urlCache = nil
+        reqConfig.requestCachePolicy = .reloadIgnoringLocalCacheData
+        self.requestSession = URLSession(configuration: reqConfig)
+
+        let streamConfig = URLSessionConfiguration.ephemeral
+        streamConfig.timeoutIntervalForRequest = 120
+        streamConfig.timeoutIntervalForResource = 3600
+        streamConfig.waitsForConnectivity = true
+        streamConfig.urlCache = nil
+        streamConfig.requestCachePolicy = .reloadIgnoringLocalCacheData
+        self.streamSession = URLSession(configuration: streamConfig)
+
         let loadedRoster = CustomPetStore.shared.loadRoster()
         self.roster = loadedRoster
         let currentProfile = SharedStorage.shared.selectedPetProfile
@@ -122,17 +147,41 @@ public final class PairSyncService: ObservableObject {
 
     public static func topicName(forPairCode code: String) -> String {
         let normalized = SharedStorage.normalizePairCode(code)
+        cryptoCacheLock.lock()
+        if let cached = cachedTopicPair, cached.code == normalized {
+            cryptoCacheLock.unlock()
+            return cached.topic
+        }
+        cryptoCacheLock.unlock()
+
         let input = Data("islandpup-topic-v3:\(normalized)".utf8)
         let digest = SHA256.hash(data: input)
         let hex = digest.map { String(format: "%02x", $0) }.joined()
-        return "islandpup-\(hex.prefix(24))"
+        let topic = "islandpup-\(hex.prefix(24))"
+
+        cryptoCacheLock.lock()
+        cachedTopicPair = (normalized, topic)
+        cryptoCacheLock.unlock()
+        return topic
     }
 
     private static func encryptionKey(forPairCode code: String) -> SymmetricKey {
         let normalized = SharedStorage.normalizePairCode(code)
+        cryptoCacheLock.lock()
+        if let cached = cachedSymmetricKey, cached.code == normalized {
+            cryptoCacheLock.unlock()
+            return cached.key
+        }
+        cryptoCacheLock.unlock()
+
         let input = Data("islandpup-aesgcm-v3:\(normalized)".utf8)
         let digest = SHA256.hash(data: input)
-        return SymmetricKey(data: Data(digest))
+        let key = SymmetricKey(data: Data(digest))
+
+        cryptoCacheLock.lock()
+        cachedSymmetricKey = (normalized, key)
+        cryptoCacheLock.unlock()
+        return key
     }
 
     public static func encryptWireMessage(_ message: PairWireMessage, pairCode: String) -> Data? {
@@ -179,6 +228,33 @@ public final class PairSyncService: ObservableObject {
 
     public var myPetSnapshot: IslandPetSnapshot {
         petStore.makeSnapshot(for: myPetProfile, action: myAction)
+    }
+
+    /// Lightweight in-memory snapshot for the in-app Dynamic Island preview (zero UserDefaults or JSON encoding).
+    public var inAppPreviewState: PetActivityAttributes.ContentState {
+        let paired = !pairCode.isEmpty
+        let activeRare = paired && partnerPet != nil && (activeRareInteraction?.isActive() == true)
+            ? activeRareInteraction
+            : nil
+        let myPreviewPet = IslandPetSnapshot(
+            id: myPetProfile.id,
+            name: myPetProfile.name,
+            builtInCharacter: myPetProfile.builtInCharacter,
+            customSheetID: myPetProfile.customSheetID,
+            colorPreset: myPetProfile.colorPreset,
+            action: myAction,
+            customMicroFrames: nil
+        )
+        return PetActivityAttributes.ContentState(
+            myPet: myPreviewPet,
+            myMessage: myMessage,
+            isPaired: paired,
+            partnerPet: partnerPet,
+            partnerOwnerName: partnerOwnerName,
+            partnerMessage: partnerMessage,
+            rareInteraction: activeRare,
+            anchorTimestamp: storage.stableAnchorTimestamp()
+        )
     }
 
     // MARK: - Pet Roster, Custom Spritesheets & Naming
@@ -326,6 +402,8 @@ public final class PairSyncService: ObservableObject {
 
         if isNewRoom {
             storage.clearPartnerMetadata()
+            processedEnvelopeIDs.removeAll()
+            processedEnvelopeOrder.removeAll()
             partnerOwnerName = nil
             partnerPet = nil
             partnerMessage = nil
@@ -345,6 +423,8 @@ public final class PairSyncService: ObservableObject {
         pairCode = ""
         storage.pairCode = ""
         storage.clearPartnerMetadata()
+        processedEnvelopeIDs.removeAll()
+        processedEnvelopeOrder.removeAll()
         partnerOwnerName = nil
         partnerPet = nil
         partnerMessage = nil
@@ -362,51 +442,76 @@ public final class PairSyncService: ObservableObject {
         }
 
         refreshConnectionBadge()
+        let session = streamSession
 
         streamTask = Task { [weak self] in
+            var retryDelaySeconds: UInt64 = 3
+            var didDisconnectOnce = false
+
             while !Task.isCancelled {
                 do {
                     var request = URLRequest(url: streamURL)
-                    request.timeoutInterval = 300
-                    let (bytes, response) = try await URLSession.shared.bytes(for: request)
+                    request.timeoutInterval = 120
+                    let (bytes, response) = try await session.bytes(for: request)
                     if let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) {
+                        retryDelaySeconds = 3
                         await MainActor.run {
+                            self?.isStreamConnected = true
                             self?.refreshConnectionBadge(connected: true)
+                        }
+                        if didDisconnectOnce {
+                            await self?.pollLatestMessages()
                         }
                         for try await line in bytes.lines {
                             if Task.isCancelled { break }
-                            await self?.handleEnvelopeLine(line)
+                            if line.contains("v3:") {
+                                await self?.handleEnvelopeLine(line)
+                            }
                         }
                     }
                 } catch {
                     if Task.isCancelled { break }
                 }
-                try? await Task.sleep(nanoseconds: 2_500_000_000)
+
+                await MainActor.run {
+                    self?.isStreamConnected = false
+                }
+                didDisconnectOnce = true
+                if Task.isCancelled { break }
+                try? await Task.sleep(nanoseconds: retryDelaySeconds * 1_000_000_000)
+                retryDelaySeconds = min(retryDelaySeconds * 2, 60)
             }
         }
 
-        heartbeatPollTask = Task { [weak self] in
+        // Only polls as a fallback when the live push stream is temporarily disconnected (zero polling when connected).
+        fallbackPollTask = Task { [weak self] in
             while !Task.isCancelled {
-                await self?.pollLatestMessages()
-                try? await Task.sleep(nanoseconds: 8_000_000_000)
+                let intervalSeconds: UInt64 = ProcessInfo.processInfo.isLowPowerModeEnabled ? 240 : 120
+                try? await Task.sleep(nanoseconds: intervalSeconds * 1_000_000_000)
+                if Task.isCancelled { break }
+                let streamHealthy = await MainActor.run { self?.isStreamConnected ?? false }
+                if !streamHealthy {
+                    await self?.pollLatestMessages()
+                }
             }
         }
 
-        // Background spontaneous rare 2-dog interaction roller while both phones are paired
+        // Low-frequency spontaneous rare 2-dog interaction roller (paused automatically in Low Power Mode).
         rareRollTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 26_000_000_000)
+                try? await Task.sleep(nanoseconds: 90_000_000_000)
                 if Task.isCancelled { break }
-                await self?.maybeRollRareInteraction(probability: 0.10)
+                await self?.maybeRollRareInteraction(probability: 0.16)
             }
         }
     }
 
     public func stopRealtimeListeners() {
+        isStreamConnected = false
         streamTask?.cancel()
         streamTask = nil
-        heartbeatPollTask?.cancel()
-        heartbeatPollTask = nil
+        fallbackPollTask?.cancel()
+        fallbackPollTask = nil
         rareRollTask?.cancel()
         rareRollTask = nil
     }
@@ -414,7 +519,8 @@ public final class PairSyncService: ObservableObject {
     // MARK: - Spontaneous Rare Two-Dog Interactions
 
     private func maybeRollRareInteraction(probability: Double) async {
-        guard storage.isPaired,
+        guard !ProcessInfo.processInfo.isLowPowerModeEnabled,
+              storage.isPaired,
               partnerPet != nil,
               activeRareInteraction == nil else {
             return
@@ -478,7 +584,7 @@ public final class PairSyncService: ObservableObject {
         }
     }
 
-    // MARK: - Broadcasting & Catch-up Polling
+    // MARK: - Broadcasting & Incremental Catch-up Polling
 
     @discardableResult
     public func broadcastMyPetState(isExplicitUpdate: Bool, notifyMessage: Bool = false) async -> Bool {
@@ -497,8 +603,10 @@ public final class PairSyncService: ObservableObject {
 
     public func pollLatestMessages() async {
         reloadFromStorage()
+        let lastServerTime = storage.lastRelayEnvelopeTime
+        let sinceParam = lastServerTime > 0 ? "\(max(1, lastServerTime - 2))" : "12h"
         guard let base = activeTopicURLString,
-              let pollURL = URL(string: "\(base)/json?poll=1&since=12h") else {
+              let pollURL = URL(string: "\(base)/json?poll=1&since=\(sinceParam)") else {
             return
         }
 
@@ -506,7 +614,7 @@ public final class PairSyncService: ObservableObject {
             var request = URLRequest(url: pollURL)
             request.timeoutInterval = 8
             request.cachePolicy = .reloadIgnoringLocalCacheData
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await requestSession.data(for: request)
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
                   data.count <= 262_144,
                   let text = String(data: data, encoding: .utf8) else {
@@ -558,7 +666,7 @@ public final class PairSyncService: ObservableObject {
         request.httpBody = encryptedBody
 
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
+            let (_, response) = try await requestSession.data(for: request)
             if let http = response as? HTTPURLResponse {
                 return (200..<300).contains(http.statusCode)
             }
@@ -584,14 +692,39 @@ public final class PairSyncService: ObservableObject {
         var alertBannerText: String?
     }
 
+    private func rememberEnvelopeID(_ id: String) -> Bool {
+        if processedEnvelopeIDs.contains(id) {
+            return false
+        }
+        processedEnvelopeIDs.insert(id)
+        processedEnvelopeOrder.append(id)
+        if processedEnvelopeOrder.count > 64 {
+            let oldest = processedEnvelopeOrder.removeFirst()
+            processedEnvelopeIDs.remove(oldest)
+        }
+        return true
+    }
+
     private func processEnvelopeJSONLine(_ line: String) async -> ProcessOutcome {
         guard !pairCode.isEmpty,
               line.utf8.count <= Self.maxEnvelopeLineBytes,
+              line.contains("v3:"),
               let lineData = line.data(using: .utf8),
               let envelope = try? JSONDecoder().decode(NtfyEnvelope.self, from: lineData),
               envelope.event == "message",
-              let inner = envelope.message,
-              let wire = Self.decryptWireMessage(inner, pairCode: pairCode) else {
+              let inner = envelope.message else {
+            return ProcessOutcome(didMutate: false, alertBannerText: nil)
+        }
+
+        if let serverTime = envelope.time, serverTime > storage.lastRelayEnvelopeTime {
+            storage.lastRelayEnvelopeTime = serverTime
+        }
+
+        if let envID = envelope.id, !envID.isEmpty, !rememberEnvelopeID(envID) {
+            return ProcessOutcome(didMutate: false, alertBannerText: nil)
+        }
+
+        guard let wire = Self.decryptWireMessage(inner, pairCode: pairCode) else {
             return ProcessOutcome(didMutate: false, alertBannerText: nil)
         }
 
@@ -724,8 +857,24 @@ public final class PairSyncService: ObservableObject {
 
     // MARK: - Live Activity Sync
 
+    public func recordPushedState(_ state: PetActivityAttributes.ContentState?) {
+        lastPushedContentState = state
+    }
+
     public func pushStateToActiveLiveActivities(alertText: String? = nil) async {
+        let activities = Activity<PetActivityAttributes>.activities
+        guard !activities.isEmpty else {
+            lastPushedContentState = nil
+            return
+        }
+
         let state = storage.currentContentState()
+        let hasAlert = (alertText != nil && !(alertText?.isEmpty ?? true))
+        if !hasAlert, state == lastPushedContentState {
+            return
+        }
+        lastPushedContentState = state
+
         let staleDate = state.activeInteraction.map { Date(timeIntervalSince1970: $0.expiresAt) }
         let content = ActivityContent(state: state, staleDate: staleDate)
 
@@ -740,7 +889,7 @@ public final class PairSyncService: ObservableObject {
             )
         }
 
-        for activity in Activity<PetActivityAttributes>.activities {
+        for activity in activities {
             if let alertConfig {
                 await activity.update(content, alertConfiguration: alertConfig)
             } else {

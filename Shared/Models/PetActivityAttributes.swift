@@ -84,6 +84,9 @@ public struct PetActivityAttributes: ActivityAttributes, Sendable {
 
         /// Guarantees the encoded `ContentState` stays safely under ActivityKit's 4,096-byte ceiling.
         public func fittingActivityKitBudget() -> ContentState {
+            if myPet.customMicroFrames == nil && partnerPet?.customMicroFrames == nil {
+                return self
+            }
             var candidate = self
             let maxSafeBytes = 3600
             if let encoded = try? JSONEncoder().encode(candidate), encoded.count <= maxSafeBytes {

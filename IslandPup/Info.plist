@@ -30,8 +30,6 @@
 	<true/>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
-	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
-	<true/>
 	<key>UIAppFonts</key>
 	<array>
 		<string>PetTimerGate-Regular.ttf</string>

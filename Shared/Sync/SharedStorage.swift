@@ -8,6 +8,10 @@ public final class SharedStorage: @unchecked Sendable {
     public static let defaultRelayURL = "https://ntfy.sh"
 
     private let defaults = UserDefaults.standard
+    private let stateLock = NSLock()
+    private var hasCachedPartnerPet = false
+    private var cachedPartnerPet: IslandPetSnapshot?
+    private var cachedAnchorTimestamp: TimeInterval = 0
 
     private enum Keys {
         static let deviceId = "islandpup.v3.deviceId"
@@ -24,6 +28,7 @@ public final class SharedStorage: @unchecked Sendable {
         static let lastAppliedRemoteSentAt = "islandpup.v3.lastAppliedRemoteSentAt"
         static let lastNotifiedRemoteSentAt = "islandpup.v3.lastNotifiedRemoteSentAt"
         static let lastRareInteractionAt = "islandpup.v3.lastRareInteractionAt"
+        static let lastRelayEnvelopeTime = "islandpup.v3.lastRelayEnvelopeTime"
     }
 
     private init() {}
@@ -93,7 +98,13 @@ public final class SharedStorage: @unchecked Sendable {
 
     public var relayBaseURL: String {
         get { Self.sanitizeRelayBaseURL(defaults.string(forKey: Keys.relayBaseURL) ?? Self.defaultRelayURL) }
-        set { defaults.set(Self.sanitizeRelayBaseURL(newValue), forKey: Keys.relayBaseURL) }
+        set {
+            let clean = Self.sanitizeRelayBaseURL(newValue)
+            if clean != relayBaseURL {
+                lastRelayEnvelopeTime = 0
+            }
+            defaults.set(clean, forKey: Keys.relayBaseURL)
+        }
     }
 
     public var partnerOwnerName: String? {
@@ -109,10 +120,33 @@ public final class SharedStorage: @unchecked Sendable {
 
     public var partnerPet: IslandPetSnapshot? {
         get {
-            guard let data = defaults.data(forKey: Keys.partnerPetData) else { return nil }
-            return try? JSONDecoder().decode(IslandPetSnapshot.self, from: data)
+            stateLock.lock()
+            if hasCachedPartnerPet {
+                let value = cachedPartnerPet
+                stateLock.unlock()
+                return value
+            }
+            stateLock.unlock()
+
+            let decoded: IslandPetSnapshot?
+            if let data = defaults.data(forKey: Keys.partnerPetData) {
+                decoded = try? JSONDecoder().decode(IslandPetSnapshot.self, from: data)
+            } else {
+                decoded = nil
+            }
+
+            stateLock.lock()
+            cachedPartnerPet = decoded
+            hasCachedPartnerPet = true
+            stateLock.unlock()
+            return decoded
         }
         set {
+            stateLock.lock()
+            cachedPartnerPet = newValue
+            hasCachedPartnerPet = true
+            stateLock.unlock()
+
             if let newValue, let data = try? JSONEncoder().encode(newValue) {
                 defaults.set(data, forKey: Keys.partnerPetData)
             } else {
@@ -165,6 +199,11 @@ public final class SharedStorage: @unchecked Sendable {
         set { defaults.set(newValue, forKey: Keys.lastRareInteractionAt) }
     }
 
+    public var lastRelayEnvelopeTime: Int {
+        get { defaults.integer(forKey: Keys.lastRelayEnvelopeTime) }
+        set { defaults.set(newValue, forKey: Keys.lastRelayEnvelopeTime) }
+    }
+
     public func clearPartnerMetadata() {
         partnerOwnerName = nil
         partnerPet = nil
@@ -172,6 +211,7 @@ public final class SharedStorage: @unchecked Sendable {
         rareInteraction = nil
         lastAppliedRemoteSentAt = 0
         lastNotifiedRemoteSentAt = 0
+        lastRelayEnvelopeTime = 0
     }
 
     /// Generates an 8-character cryptographically random pair code (`SecRandomCopyBytes`).
@@ -225,10 +265,27 @@ public final class SharedStorage: @unchecked Sendable {
             ?? defaultRelayURL
     }
 
+    /// Returns a stable even-second aligned timestamp (refreshed at most once every 6 hours)
+    /// so `PetTimerGate-Regular` stays < 7 chars (`H:MM:SS`) while keeping `ContentState` equatable
+    /// across updates to prevent redundant `Activity.update` XPC wakeups.
+    public func stableAnchorTimestamp() -> TimeInterval {
+        let now = Date().timeIntervalSince1970
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        if cachedAnchorTimestamp == 0
+            || now < cachedAnchorTimestamp + 2.0
+            || now - cachedAnchorTimestamp > 21_600 {
+            cachedAnchorTimestamp = floor(now / 2.0) * 2.0 - 60.0
+        }
+        return cachedAnchorTimestamp
+    }
+
     /// Builds a safe, `< 4 KB` `PetActivityAttributes.ContentState` snapshot for Dynamic Island & Lock Screen.
     public func currentContentState() -> PetActivityAttributes.ContentState {
         let profile = selectedPetProfile
-        let activeRare = isPaired && partnerPet != nil ? rareInteraction : nil
+        let currentPartner = partnerPet
+        let paired = isPaired
+        let activeRare = paired && currentPartner != nil ? rareInteraction : nil
         let effectiveMyAction = activeRare?.kind.myDogAction ?? myAction
         var mySnapshot = CustomPetStore.shared.makeSnapshot(for: profile, action: effectiveMyAction)
         mySnapshot.action = myAction
@@ -236,11 +293,12 @@ public final class SharedStorage: @unchecked Sendable {
         return PetActivityAttributes.ContentState(
             myPet: mySnapshot,
             myMessage: myMessage,
-            isPaired: isPaired,
-            partnerPet: partnerPet,
+            isPaired: paired,
+            partnerPet: currentPartner,
             partnerOwnerName: partnerOwnerName,
             partnerMessage: partnerMessage,
-            rareInteraction: activeRare
+            rareInteraction: activeRare,
+            anchorTimestamp: stableAnchorTimestamp()
         ).fittingActivityKitBudget()
     }
 }
