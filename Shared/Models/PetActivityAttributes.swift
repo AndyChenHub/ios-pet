@@ -80,7 +80,11 @@ public struct PetActivityAttributes: ActivityAttributes, Sendable {
         }
 
         public var anchorDate: Date {
-            Date(timeIntervalSince1970: anchorTimestamp)
+            if let active = activeInteraction {
+                let aligned = floor(active.startedAt / 6.0) * 6.0 - 60.0
+                return Date(timeIntervalSince1970: aligned)
+            }
+            return Date(timeIntervalSince1970: anchorTimestamp)
         }
 
         /// True when paired and we have a connected dog to display beside ours on the Dynamic Island.

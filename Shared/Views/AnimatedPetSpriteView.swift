@@ -399,13 +399,14 @@ public struct AnimatedPetSpriteView: View {
     }
 }
 
-/// Renders combined two-dog interaction scenes (`duo_<key>_0..3`) and ultra-rare long story skits
+/// Renders combined two-dog interaction scenes (`duo_<key>_0..3`) and long story skits
 /// across Dynamic Island / Lock Screen (2s or 6s Painter's Algorithm) and in-app (`TimelineView`).
 public struct AnimatedDuoSpriteView: View {
     public let kind: RareInteractionKind
     public let width: CGFloat
     public let height: CGFloat
     public let driver: AnimatedPetSpriteView.PlaybackDriver
+    public let startedAt: TimeInterval?
 
     private let frameNames: [String]
 
@@ -415,7 +416,8 @@ public struct AnimatedDuoSpriteView: View {
     public init(
         kind: RareInteractionKind,
         height: CGFloat,
-        driver: AnimatedPetSpriteView.PlaybackDriver
+        driver: AnimatedPetSpriteView.PlaybackDriver,
+        startedAt: TimeInterval? = nil
     ) {
         if case .widgetTimerGate = driver {
             _ = PetFontRegistrar.registerOnce
@@ -424,6 +426,7 @@ public struct AnimatedDuoSpriteView: View {
         self.height = height
         self.width = (height * (200.0 / 144.0)).rounded()
         self.driver = driver
+        self.startedAt = startedAt
         self.frameNames = kind.frameAssetNames
     }
 
@@ -440,8 +443,8 @@ public struct AnimatedDuoSpriteView: View {
                     let sampled = ProcessInfo.processInfo.isLowPowerModeEnabled
                         ? [frameNames[0], frameNames[frameNames.count / 2]]
                         : frameNames
-                    let cycle: Double = kind.isUltraRareLongSkit ? 6.0 : 2.0
-                    let fontName = kind.isUltraRareLongSkit ? "PetTimerGate6s-Regular" : "PetTimerGate-Regular"
+                    let cycle: Double = kind.isLongSkit ? 6.0 : 2.0
+                    let fontName = kind.isLongSkit ? "PetTimerGate6s-Regular" : "PetTimerGate-Regular"
                     duoWidgetTwoStackLoop(
                         frames: sampled,
                         anchor: anchor,
@@ -457,7 +460,9 @@ public struct AnimatedDuoSpriteView: View {
                           let decodedSkit = LongSkitPlaybackCache.shared.skit(named: datasetName) {
                     let tickInterval = ProcessInfo.processInfo.isLowPowerModeEnabled ? 0.25 : 0.085
                     TimelineView(.periodic(from: .now, by: tickInterval)) { context in
-                        let img = decodedSkit.frame(at: context.date.timeIntervalSinceReferenceDate)
+                        let refTime = startedAt.map { max(0, context.date.timeIntervalSince1970 - $0) }
+                            ?? context.date.timeIntervalSinceReferenceDate
+                        let img = decodedSkit.frame(at: refTime)
                         Image(uiImage: img)
                             .renderingMode(.original)
                             .interpolation(.high)
@@ -471,7 +476,9 @@ public struct AnimatedDuoSpriteView: View {
                         ? min(kind.inAppFPS, 3.0)
                         : kind.inAppFPS
                     TimelineView(.periodic(from: .now, by: 1.0 / max(effectiveFPS, 1.0))) { context in
-                        let rawTick = Int(floor(context.date.timeIntervalSinceReferenceDate * effectiveFPS))
+                        let refTime = startedAt.map { max(0, context.date.timeIntervalSince1970 - $0) }
+                            ?? context.date.timeIntervalSinceReferenceDate
+                        let rawTick = Int(floor(refTime * effectiveFPS))
                         let idx = ((rawTick % frameNames.count) + frameNames.count) % frameNames.count
                         renderDuoFrame(frameNames[idx])
                     }

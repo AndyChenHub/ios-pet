@@ -582,7 +582,58 @@ public struct SoloPetQuirk: Codable, Hashable, Sendable {
     }
 }
 
-/// Thematic grouping for the 20 standard duo scenes and 10 ultra-rare long story skits.
+/// Rarity tiers for synchronized special two-dog interactions.
+public enum InteractionRarity: String, Codable, CaseIterable, Comparable, Hashable, Sendable {
+    case rare = "rare"
+    case superRare = "super_rare"
+    case ultraRare = "ultra_rare"
+
+    public var rank: Int {
+        switch self {
+        case .rare:      return 1
+        case .superRare: return 2
+        case .ultraRare: return 3
+        }
+    }
+
+    public static func < (lhs: InteractionRarity, rhs: InteractionRarity) -> Bool {
+        lhs.rank < rhs.rank
+    }
+
+    public var title: String {
+        switch self {
+        case .rare:      return "Rare"
+        case .superRare: return "Super Rare"
+        case .ultraRare: return "Ultra Rare"
+        }
+    }
+
+    public var badgeLabel: String {
+        switch self {
+        case .rare:      return "✨ RARE"
+        case .superRare: return "💎 SUPER RARE"
+        case .ultraRare: return "👑 ULTRA RARE"
+        }
+    }
+
+    public var accentColor: Color {
+        switch self {
+        case .rare:      return Color(red: 0.98, green: 0.45, blue: 0.68)
+        case .superRare: return Color(red: 0.62, green: 0.46, blue: 1.00)
+        case .ultraRare: return Color(red: 1.00, green: 0.80, blue: 0.28)
+        }
+    }
+
+    public var badgeTextColor: Color {
+        switch self {
+        case .rare:      return Color(red: 1.00, green: 0.76, blue: 0.88)
+        case .superRare: return Color(red: 0.84, green: 0.78, blue: 1.00)
+        case .ultraRare: return Color(red: 1.00, green: 0.90, blue: 0.52)
+        }
+    }
+}
+
+/// Thematic grouping for the 20 standard duo scenes and 10 long story skits.
 public enum DuoInteractionCategory: String, Codable, CaseIterable, Sendable {
     case sweet
     case funny
@@ -594,12 +645,13 @@ public enum DuoInteractionCategory: String, Codable, CaseIterable, Sendable {
         case .sweet:      return "Sweet & Cozy"
         case .funny:      return "Funny & Sassy"
         case .chaos:      return "Sibling Chaos"
-        case .mythicSkit: return "Ultra-Rare Story Skit"
+        case .mythicSkit: return "Story Skit"
         }
     }
 }
 
-/// All 20 combined two-dog animations (`duo_*`) plus 10 ultra-rare 3-act long story skits (`skit_*`).
+/// All 20 combined two-dog animations (`duo_*`) plus 10 3-act long story skits (`skit_*`),
+/// curated into Rare, Super Rare, and Ultra Rare (cutest & funniest) tiers.
 public enum RareInteractionKind: String, CaseIterable, Identifiable, Hashable, Sendable {
     // 20 Standard Combined Duo Scenes
     case tugOfWar = "tug_of_war"
@@ -623,7 +675,7 @@ public enum RareInteractionKind: String, CaseIterable, Identifiable, Hashable, S
     case cheerUpLove = "cheer_up_love"
     case cozyNapTruce = "cozy_nap_truce"
 
-    // 10 Extremely Rare Long 3-Act Story Skits (~6.5s-7.0s each)
+    // 10 Long 3-Act Story Skits (~6.5s-7.0s each)
     case skitKibbleHeist = "skit_kibble_heist_chase"
     case skitAnnoyUntilBonk = "skit_annoy_until_bonk"
     case skitTugOfWarSaga = "skit_tug_of_war_saga"
@@ -637,26 +689,77 @@ public enum RareInteractionKind: String, CaseIterable, Identifiable, Hashable, S
 
     public var id: String { rawValue }
 
-    public var isUltraRareLongSkit: Bool {
+    /// True for the 10 full-length 3-act story skits (6-beat Dynamic Island loop + animated WebP dataset).
+    public var isLongSkit: Bool {
         category == .mythicSkit
     }
 
-    public static let standardCases: [RareInteractionKind] = allCases.filter { !$0.isUltraRareLongSkit }
-    public static let ultraRareSkitCases: [RareInteractionKind] = allCases.filter { $0.isUltraRareLongSkit }
+    /// Curated rarity tier: Rare (playful antics), Super Rare (sweetest/sassiest), Ultra Rare (cutest & funniest 3-act stories).
+    public var rarity: InteractionRarity {
+        switch self {
+        case .skitBlanketWarBurrito,
+             .skitSadToPartyRescue,
+             .skitBiteyFaceToNap,
+             .skitPersonalSpaceHeadSit,
+             .skitDetectiveWhodunnit,
+             .skitWfhMeetingDisaster,
+             .skitAnnoyUntilBonk,
+             .skitKibbleHeist:
+            return .ultraRare
+
+        case .cheerUpLove,
+             .cozyNapTruce,
+             .doubleBegSquad,
+             .sittingOnHead,
+             .buttSniff,
+             .blameEachOther,
+             .doubleSideEye,
+             .sharedBraincell,
+             .skitTugOfWarSaga,
+             .skitZoomieCrashWipeout:
+            return .superRare
+
+        case .tugOfWar,
+             .stealingFood,
+             .zoomieCrash,
+             .pawBonk,
+             .blanketHog,
+             .biteyFace,
+             .earNibbleAnnoy,
+             .barkArgument,
+             .foodEnvyBeg,
+             .zoomieChase,
+             .spinIntoDizzy,
+             .interruptWork:
+            return .rare
+        }
+    }
+
+    public static let rareCases: [RareInteractionKind] = allCases.filter { $0.rarity == .rare }
+    public static let superRareCases: [RareInteractionKind] = allCases.filter { $0.rarity == .superRare }
+    public static let ultraRareCases: [RareInteractionKind] = allCases.filter { $0.rarity == .ultraRare }
+
+    public static func cases(for rarity: InteractionRarity) -> [RareInteractionKind] {
+        switch rarity {
+        case .rare:      return rareCases
+        case .superRare: return superRareCases
+        case .ultraRare: return ultraRareCases
+        }
+    }
 
     /// Asset catalog image names (`duo_<key>_0..3` for standard scenes, `duo_<key>_0..5` 6-beat frames for skits).
     public var frameAssetNames: [String] {
-        let count = isUltraRareLongSkit ? 6 : 4
+        let count = isLongSkit ? 6 : 4
         return (0..<count).map { "duo_\(rawValue)_\($0)" }
     }
 
     /// Name of the full 50-80 frame animated WebP `.dataset` in `Assets.xcassets/LongSkits` for in-app playback.
     public var longSkitDatasetName: String? {
-        isUltraRareLongSkit ? rawValue : nil
+        isLongSkit ? rawValue : nil
     }
 
     public var defaultDuration: TimeInterval {
-        isUltraRareLongSkit ? 66 : 42
+        isLongSkit ? 66 : 44
     }
 
     /// Maps a standard duo interaction to its matching ultra-rare 3-act story skit when a rare jackpot rolls!
@@ -801,7 +904,7 @@ public enum RareInteractionKind: String, CaseIterable, Identifiable, Hashable, S
     }
 
     public var inAppFPS: Double {
-        if isUltraRareLongSkit {
+        if isLongSkit {
             return 11.76 // 85ms native skit tick rate
         }
         switch self {
@@ -1054,7 +1157,7 @@ public struct RarePetInteraction: Codable, Hashable, Sendable {
         if let triggerBadge, !triggerBadge.isEmpty {
             return triggerBadge
         }
-        return kind.isUltraRareLongSkit ? "🌟 ULTRA-RARE STORY SKIT" : "✨ DUO MOMENT"
+        return kind.rarity.badgeLabel
     }
 
     public func isActive(at now: TimeInterval = Date().timeIntervalSince1970) -> Bool {
@@ -1065,7 +1168,7 @@ public struct RarePetInteraction: Codable, Hashable, Sendable {
 /// Exposes the stamped IPA semantic version, CI build number, and short commit SHA inside the app UI.
 public enum AppBuildInfo {
     public static var version: String {
-        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "1.2.0"
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "1.2.1"
     }
 
     public static var build: String {

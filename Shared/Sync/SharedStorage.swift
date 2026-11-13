@@ -29,6 +29,7 @@ public final class SharedStorage: @unchecked Sendable {
         static let lastAppliedRemoteSentAt = "islandpup.v3.lastAppliedRemoteSentAt"
         static let lastNotifiedRemoteSentAt = "islandpup.v3.lastNotifiedRemoteSentAt"
         static let lastRareInteractionAt = "islandpup.v3.lastRareInteractionAt"
+        static let lastSuperRareInteractionAt = "islandpup.v3.lastSuperRareInteractionAt"
         static let lastUltraRareSkitAt = "islandpup.v3.lastUltraRareSkitAt"
         static let lastRelayEnvelopeTime = "islandpup.v3.lastRelayEnvelopeTime"
         static let schemaVersion = "islandpup.v3.schemaVersion"
@@ -219,6 +220,11 @@ public final class SharedStorage: @unchecked Sendable {
     public var lastRareInteractionAt: TimeInterval {
         get { defaults.double(forKey: Keys.lastRareInteractionAt) }
         set { defaults.set(newValue, forKey: Keys.lastRareInteractionAt) }
+    }
+
+    public var lastSuperRareInteractionAt: TimeInterval {
+        get { defaults.double(forKey: Keys.lastSuperRareInteractionAt) }
+        set { defaults.set(newValue, forKey: Keys.lastSuperRareInteractionAt) }
     }
 
     public var lastUltraRareSkitAt: TimeInterval {

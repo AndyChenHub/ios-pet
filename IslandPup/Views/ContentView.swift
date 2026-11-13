@@ -14,7 +14,6 @@ struct ContentView: View {
     @ObservedObject var islandController: LiveActivityController
 
     @State private var selectedFilter: ActionFilter = .all
-    @State private var showTriggerGuide: Bool = false
     @State private var messageInput: String = ""
     @State private var showPairSheet: Bool = false
     @State private var petSheetMode: AddPetSheet.Mode?
@@ -50,8 +49,14 @@ struct ContentView: View {
                         DynamicIslandPreviewBar(
                             state: liveSnapshotState,
                             isLiveOnDeviceIsland: islandController.isRunningOnIsland,
-                            onBoopMyPet: {
-                                boopSelectedPet()
+                            onSelectAction: { action in
+                                triggerMyAction(action)
+                            },
+                            onSyncPartner: {
+                                Task {
+                                    await syncService.pollLatestMessages()
+                                    await syncService.pushStateToActiveLiveActivities()
+                                }
                             }
                         )
 
@@ -170,13 +175,10 @@ struct ContentView: View {
 
     private func rareInteractionCard(rare: RarePetInteraction, partnerPet: IslandPetSnapshot) -> some View {
         let useCombinedArt = (syncService.myPetProfile.builtInCharacter != nil) && (partnerPet.builtInCharacter != nil)
-        let isMythicSkit = rare.kind.isUltraRareLongSkit
-        let accentColor = isMythicSkit
-            ? Color(red: 1.0, green: 0.80, blue: 0.28)
-            : Color.pink
-        let badgeTextColor = isMythicSkit
-            ? Color(red: 1.0, green: 0.88, blue: 0.50)
-            : Color(red: 1.0, green: 0.75, blue: 0.88)
+        let rarity = rare.kind.rarity
+        let accentColor = rarity.accentColor
+        let badgeTextColor = rarity.badgeTextColor
+        let isElevatedTier = rarity >= .superRare
 
         return HStack(spacing: 12) {
             if useCombinedArt {
@@ -186,13 +188,14 @@ struct ContentView: View {
                         .frame(width: 96, height: 68)
                         .overlay(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .strokeBorder(accentColor.opacity(isMythicSkit ? 0.65 : 0.0), lineWidth: 1.2)
+                                .strokeBorder(accentColor.opacity(isElevatedTier ? 0.65 : 0.35), lineWidth: 1.2)
                         )
 
                     AnimatedDuoSpriteView(
                         kind: rare.kind,
                         height: 62,
-                        driver: .liveTimeline
+                        driver: .liveTimeline,
+                        startedAt: rare.startedAt
                     )
                 }
             } else {
@@ -222,10 +225,10 @@ struct ContentView: View {
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(accentColor.opacity(isMythicSkit ? 0.20 : 0.18))
+                .fill(accentColor.opacity(rarity == .ultraRare ? 0.22 : 0.18))
                 .overlay(
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .strokeBorder(accentColor.opacity(isMythicSkit ? 0.72 : 0.58), lineWidth: 1.5)
+                        .strokeBorder(accentColor.opacity(isElevatedTier ? 0.72 : 0.58), lineWidth: 1.5)
                 )
         )
     }
@@ -279,72 +282,17 @@ struct ContentView: View {
 
     private var emotionsAndTasksCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center, spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(syncService.myPetProfile.name.uppercased())'S EMOTIONS & TASKS")
-                        .font(.system(size: 11, weight: .heavy, design: .rounded))
-                        .tracking(0.7)
-                        .foregroundStyle(.white.opacity(0.62))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(syncService.myPetProfile.name.uppercased())'S EMOTIONS & TASKS")
+                    .font(.system(size: 11, weight: .heavy, design: .rounded))
+                    .tracking(0.7)
+                    .foregroundStyle(.white.opacity(0.62))
 
-                    Text(syncService.pairCode.isEmpty
-                         ? "Tap to switch \(syncService.myPetProfile.name)'s status on the Dynamic Island"
-                         : "Silent Island sync • Never sends push notifications")
-                        .font(.system(size: 11.5, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.52))
-                }
-
-                Spacer(minLength: 4)
-
-                HStack(spacing: 6) {
-                    Button {
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        boopSelectedPet()
-                    } label: {
-                        HStack(spacing: 3) {
-                            Text("🐽")
-                                .font(.system(size: 12))
-                            Text("Boop")
-                                .font(.system(size: 11.5, weight: .bold, design: .rounded))
-                        }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 6)
-                        .background(
-                            Capsule()
-                                .fill(Color.white.opacity(0.11))
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        triggerSurpriseMoment()
-                    } label: {
-                        HStack(spacing: 3) {
-                            Text("🎲")
-                                .font(.system(size: 12))
-                            Text("Surprise")
-                                .font(.system(size: 11.5, weight: .bold, design: .rounded))
-                        }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(
-                            Capsule()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [
-                                            Color.pink.opacity(0.55),
-                                            Color.purple.opacity(0.55)
-                                        ],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
+                Text(syncService.pairCode.isEmpty
+                     ? "Tap to switch \(syncService.myPetProfile.name)'s status on the Dynamic Island"
+                     : "Silent Island sync • Never sends push notifications")
+                    .font(.system(size: 11.5, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.52))
             }
 
             // Category Filter Pills
@@ -389,21 +337,6 @@ struct ContentView: View {
             case .tasks:
                 actionTileGrid(actions: PetAction.taskActions)
             }
-
-            DisclosureGroup("✨ How Special Animations Unlock", isExpanded: $showTriggerGuide) {
-                VStack(alignment: .leading, spacing: 6) {
-                    triggerRuleRow(badge: "⚡ Twin Status", detail: "Pick the same Emotion or Task both pets are doing to unlock tailored duo scenes.")
-                    triggerRuleRow(badge: "💥 Sibling Clash", detail: "Contrast moods (like Working + Happy, Eating + Sad/Waiting, or Sleeping + Playful).")
-                    triggerRuleRow(badge: "💬 Message Words", detail: "Send messages mentioning food, love, sleep, walks, zoomies, or work.")
-                    triggerRuleRow(badge: "🐽 Boop & 3× Spin", detail: "Tap \(syncService.myPetProfile.name) in the Island preview to boop, or triple-tap fast to spin dizzy!")
-                    triggerRuleRow(badge: "🎲 Spontaneous", detail: "8 solo quirks & 20 duo animations also trigger randomly on their own.")
-                    triggerRuleRow(badge: "🌟 Mythic Skits", detail: "10 full-length 3-act story episodes have an extremely rare chance to appear!")
-                }
-                .padding(.top, 8)
-            }
-            .font(.system(size: 12, weight: .semibold, design: .rounded))
-            .foregroundStyle(.white.opacity(0.75))
-            .tint(.white.opacity(0.6))
         }
         .padding(15)
         .background(cardBackground)
@@ -479,18 +412,6 @@ struct ContentView: View {
             )
         }
         .buttonStyle(.plain)
-    }
-
-    private func triggerRuleRow(badge: String, detail: String) -> some View {
-        HStack(alignment: .top, spacing: 6) {
-            Text(badge)
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundStyle(Color(red: 1.0, green: 0.78, blue: 0.88))
-                .frame(width: 108, alignment: .leading)
-            Text(detail)
-                .font(.system(size: 11, weight: .regular, design: .rounded))
-                .foregroundStyle(.white.opacity(0.68))
-        }
     }
 
     // MARK: - Start / Stop Dynamic Island Card
@@ -1004,20 +925,6 @@ struct ContentView: View {
     private func triggerMyAction(_ action: PetAction) {
         Task {
             await syncService.setMyPetAction(action)
-            await ensureIslandStarted()
-        }
-    }
-
-    private func boopSelectedPet() {
-        Task {
-            await syncService.boopMyPet()
-            await ensureIslandStarted()
-        }
-    }
-
-    private func triggerSurpriseMoment() {
-        Task {
-            await syncService.triggerSurpriseSpecial()
             await ensureIslandStarted()
         }
     }

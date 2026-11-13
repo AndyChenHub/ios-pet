@@ -17,9 +17,7 @@ struct IslandPupLiveActivity: Widget {
             let showCombinedDuo = (interaction != nil) && state.canRenderCombinedDuoArtwork
             let islandTint: Color = {
                 guard let interaction else { return myDisplayPet.themeColor }
-                return interaction.kind.isUltraRareLongSkit
-                    ? Color(red: 1.0, green: 0.80, blue: 0.28)
-                    : Color.pink
+                return interaction.kind.rarity.accentColor
             }()
 
             return DynamicIsland {
@@ -37,7 +35,7 @@ struct IslandPupLiveActivity: Widget {
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(Capsule().fill(.white.opacity(0.12)))
-                        .padding(.leading, 2)
+                        .padding(.leading, 4)
                     } else {
                         VStack(spacing: 3) {
                             ZStack {
@@ -62,7 +60,8 @@ struct IslandPupLiveActivity: Widget {
                                 .foregroundStyle(.white.opacity(0.9))
                                 .lineLimit(1)
                         }
-                        .padding(.leading, 2)
+                        .frame(width: 62)
+                        .padding(.leading, 4)
                     }
                 }
 
@@ -80,7 +79,7 @@ struct IslandPupLiveActivity: Widget {
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(Capsule().fill(.white.opacity(0.12)))
-                        .padding(.trailing, 2)
+                        .padding(.trailing, 6)
                     } else if let partner = partnerDisplayPet, state.hasTwoDogs {
                         VStack(spacing: 3) {
                             ZStack {
@@ -106,7 +105,8 @@ struct IslandPupLiveActivity: Widget {
                                 .foregroundStyle(.white.opacity(0.9))
                                 .lineLimit(1)
                         }
-                        .padding(.trailing, 2)
+                        .frame(width: 62)
+                        .padding(.trailing, 6)
                     } else {
                         VStack(alignment: .trailing, spacing: 6) {
                             HStack(spacing: 4) {
@@ -123,7 +123,7 @@ struct IslandPupLiveActivity: Widget {
                                 Capsule().fill(myDisplayPet.action.accentColor.opacity(0.28))
                             )
                         }
-                        .padding(.trailing, 2)
+                        .padding(.trailing, 4)
                     }
                 }
 
@@ -226,6 +226,7 @@ struct IslandPupLiveActivity: Widget {
                             .offset(x: 3, y: -2)
                     }
                 }
+                .padding(.leading, 1)
             } compactTrailing: {
                 if let partner = partnerDisplayPet, state.hasTwoDogs {
                     ZStack(alignment: .topLeading) {
@@ -241,6 +242,7 @@ struct IslandPupLiveActivity: Widget {
                                 .offset(x: -3, y: -2)
                         }
                     }
+                    .padding(.trailing, 5)
                 } else {
                     Text(myDisplayPet.action.emoji)
                         .font(.system(size: 14))
@@ -266,11 +268,8 @@ struct IslandPupLiveActivity: Widget {
         showCombinedDuo: Bool
     ) -> some View {
         if let interaction, let partnerPet {
-            let isMythicSkit = interaction.kind.isUltraRareLongSkit
-            let strokeColor = isMythicSkit ? Color(red: 1.0, green: 0.80, blue: 0.28) : Color.pink
-            let badgeColor = isMythicSkit
-                ? Color(red: 1.0, green: 0.88, blue: 0.50)
-                : Color(red: 1.0, green: 0.75, blue: 0.88)
+            let strokeColor = interaction.kind.rarity.accentColor
+            let badgeColor = interaction.kind.rarity.badgeTextColor
 
             if showCombinedDuo {
                 HStack(spacing: 10) {
@@ -314,7 +313,7 @@ struct IslandPupLiveActivity: Widget {
                 VStack(spacing: 2) {
                     Text(interaction.effectiveTriggerBadge)
                         .font(.system(size: 9, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Color(red: 1.0, green: 0.78, blue: 0.88))
+                        .foregroundStyle(badgeColor)
                         .lineLimit(1)
 
                     Text("\(interaction.kind.badgeEmoji) \(interaction.kind.title)")
@@ -491,11 +490,8 @@ private struct LockScreenPetBannerView: View {
         interaction: RarePetInteraction?
     ) -> some View {
         if let interaction {
-            let isMythicSkit = interaction.kind.isUltraRareLongSkit
-            let strokeColor = isMythicSkit ? Color(red: 1.0, green: 0.80, blue: 0.28) : Color.pink
-            let badgeColor = isMythicSkit
-                ? Color(red: 1.0, green: 0.88, blue: 0.50)
-                : Color(red: 1.0, green: 0.72, blue: 0.86)
+            let strokeColor = interaction.kind.rarity.accentColor
+            let badgeColor = interaction.kind.rarity.badgeTextColor
 
             HStack(spacing: 11) {
                 if state.canRenderCombinedDuoArtwork {
@@ -562,13 +558,14 @@ private struct LockScreenPetBannerView: View {
                 Spacer(minLength: 0)
             }
         } else {
-            HStack(spacing: 10) {
+            HStack(spacing: 12) {
                 dogPill(pet: myPet, flip: false)
-                Spacer(minLength: 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 dogPill(
                     pet: partnerPet,
                     flip: shouldFlipRightDog(action: partnerPet.action)
                 )
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }

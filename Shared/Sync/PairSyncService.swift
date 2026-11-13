@@ -52,6 +52,18 @@ private struct NtfyEnvelope: Decodable {
     let message: String?
 }
 
+public struct BackgroundWorkToken: Sendable {
+    private let endHandler: @Sendable () -> Void
+
+    public init(endHandler: @escaping @Sendable () -> Void) {
+        self.endHandler = endHandler
+    }
+
+    public func end() {
+        endHandler()
+    }
+}
+
 @MainActor
 public final class PairSyncService: ObservableObject {
     public static let shared = PairSyncService()
@@ -60,9 +72,22 @@ public final class PairSyncService: ObservableObject {
     private static let maxCiphertextChars = 3900
     private static let maxFutureClockSkewSeconds: TimeInterval = 300
     private static let maxMessageAgeSeconds: TimeInterval = 86_400
-    private static let randomInteractionCooldown: TimeInterval = 180
-    private static let clashInteractionCooldown: TimeInterval = 28
-    private static let ultraRareSkitCooldown: TimeInterval = 2_700 // 45-minute cooldown between ultra-rare story skits
+
+    // Very low probability & long cooldowns so special animations feel genuinely rare
+    private static let rareInteractionCooldown: TimeInterval = 1_200     // 20 minutes between any special animations
+    private static let superRareCooldown: TimeInterval = 2_700           // 45 minutes between Super Rare animations
+    private static let ultraRareCooldown: TimeInterval = 7_200           // 2 hours between Ultra Rare animations
+
+    private static let twinStatusTriggerChance: Double = 0.05            // 5.0% when both pets match status
+    private static let clashStatusTriggerChance: Double = 0.035          // 3.5% on contrasting moods
+    private static let normalStatusTriggerChance: Double = 0.015         // 1.5% on general status change
+    private static let keywordMessageTriggerChance: Double = 0.06        // 6.0% on themed message
+    private static let normalMessageTriggerChance: Double = 0.02         // 2.0% on general message
+    private static let spontaneousIdleTriggerChance: Double = 0.015      // 1.5% per 5-minute idle check
+    private static let soloQuirkTriggerChance: Double = 0.02             // 2.0% when unpaired
+
+    private static let ultraRareTierWeight: Double = 0.06                // 6% of triggered moments -> Ultra Rare
+    private static let superRareTierWeight: Double = 0.22                // 22% of triggered moments -> Super Rare
 
     private static let cryptoCacheLock = NSLock()
     private static var cachedTopicPair: (code: String, topic: String)?
@@ -97,6 +122,10 @@ public final class PairSyncService: ObservableObject {
     @Published public private(set) var connectionStatus: ConnectionStatus = .unpaired
     @Published public var toastMessage: String?
 
+    /// Injected by the main application (`IslandPupApp`) to protect outgoing sync POSTs
+    /// and brief Home Screen Dynamic Island viewing windows without referencing `UIApplication.shared` in `Shared`.
+    public var beginBackgroundWork: ((@escaping @MainActor () -> Void) -> BackgroundWorkToken?)?
+
     private let storage = SharedStorage.shared
     private let petStore = CustomPetStore.shared
     private let requestSession: URLSession
@@ -106,12 +135,11 @@ public final class PairSyncService: ObservableObject {
     private var rareRollTask: Task<Void, Never>?
     private var rareExpiryTask: Task<Void, Never>?
     private var soloQuirkExpiryTask: Task<Void, Never>?
+    private var backgroundStreamToken: BackgroundWorkToken?
     private var isStreamConnected: Bool = false
     private var processedEnvelopeIDs: Set<String> = []
     private var processedEnvelopeOrder: [String] = []
     private var lastPushedContentState: PetActivityAttributes.ContentState?
-    private var recentSwitchTimestamps: [TimeInterval] = []
-    private var recentBoopTimestamps: [TimeInterval] = []
 
     private init() {
         let reqConfig = URLSessionConfiguration.ephemeral
@@ -332,89 +360,70 @@ public final class PairSyncService: ObservableObject {
         }
     }
 
-    // MARK: - Emotions, Tasks, Messages & Interactive Triggers
+    // MARK: - Emotions, Tasks & Messages
 
-    /// Updates ONLY your pet's Emotion/Task silently (no notification), checking special status triggers!
+    /// Updates ONLY your pet's Emotion/Task silently (no notification), rolling a very low chance for synced special animations!
     public func setMyPetAction(_ action: PetAction) async {
         let now = Date().timeIntervalSince1970
-        recentSwitchTimestamps = recentSwitchTimestamps.filter { now - $0 <= 10.0 }
-        recentSwitchTimestamps.append(now)
-        let isMoodWhiplash = recentSwitchTimestamps.count >= 4
-        if isMoodWhiplash {
-            recentSwitchTimestamps.removeAll()
-        }
 
         myAction = action
         storage.myAction = action
         clearSoloQuirkLocally()
 
-        var triggeredDuo: RarePetInteraction?
+        var candidateDuo: RarePetInteraction?
         if storage.isPaired, let connectedPet = partnerPet {
-            if isMoodWhiplash {
-                triggeredDuo = RarePetInteraction(
-                    kind: .spinIntoDizzy,
-                    triggerBadge: "🌀 MOOD WHIPLASH",
-                    startedAt: now,
-                    duration: 38
+            if connectedPet.action == action {
+                candidateDuo = rollSyncedSpecialInteraction(
+                    triggerChance: Self.twinStatusTriggerChance,
+                    preferredKinds: Self.twinStatusCandidates(for: action),
+                    now: now
                 )
-            } else if connectedPet.action == action {
-                let kind = Self.pickTwinStatusDuo(for: action)
-                triggeredDuo = makeDuoEventWithRareSkitChance(
-                    standardKind: kind,
-                    standardBadge: "⚡ TWIN STATUS (\(action.title.uppercased()))",
-                    now: now,
-                    standardDuration: 44,
-                    ultraRareProbability: 0.035
-                )
-            } else if now - storage.lastRareInteractionAt >= Self.clashInteractionCooldown,
-                      let clashKind = Self.pickClashStatusDuo(first: action, second: connectedPet.action) {
-                var rng = SystemRandomNumberGenerator()
-                if Double.random(in: 0..<1, using: &rng) < 0.72 {
-                    triggeredDuo = makeDuoEventWithRareSkitChance(
-                        standardKind: clashKind,
-                        standardBadge: "💥 SIBLING CLASH",
-                        now: now,
-                        standardDuration: 40,
-                        ultraRareProbability: 0.03
+            } else {
+                let clashCandidates = Self.clashStatusCandidates(first: action, second: connectedPet.action)
+                if !clashCandidates.isEmpty {
+                    candidateDuo = rollSyncedSpecialInteraction(
+                        triggerChance: Self.clashStatusTriggerChance,
+                        preferredKinds: clashCandidates,
+                        now: now
+                    )
+                } else {
+                    candidateDuo = rollSyncedSpecialInteraction(
+                        triggerChance: Self.normalStatusTriggerChance,
+                        preferredKinds: [],
+                        now: now
                     )
                 }
             }
-        } else if isMoodWhiplash {
-            let quirk = SoloPetQuirk(
-                action: .dizzy,
-                triggerBadge: "🌀 MOOD WHIPLASH",
-                startedAt: now,
-                duration: 30
-            )
-            applySoloQuirk(quirk, toastText: "🌀 \(myPetProfile.name) got dizzy from all the mood switches!")
+        } else if !storage.isPaired {
+            maybeRollRareSoloQuirk(preferredAction: nil, now: now)
         }
-
-        if let triggeredDuo {
-            await applyRareInteraction(triggeredDuo, broadcastToPartner: false, pushIslandNow: false)
-        }
-
-        await pushStateToActiveLiveActivities()
 
         if storage.isPaired {
             let ok = await broadcastMyPetState(
                 isExplicitUpdate: true,
                 notifyMessage: false,
-                piggybackedRare: triggeredDuo
+                piggybackedRare: candidateDuo
             )
             if ok {
-                if triggeredDuo == nil {
+                if let candidateDuo {
+                    await applyRareInteraction(candidateDuo, broadcastToPartner: false, pushIslandNow: true)
+                } else {
+                    await pushStateToActiveLiveActivities()
                     showToast("\(myPetProfile.name) is now \(action.title) \(action.emoji)")
-                    await maybeRollSpecialMoment(probability: 0.12)
                 }
-            } else if triggeredDuo == nil {
+            } else {
+                await pushStateToActiveLiveActivities()
                 showToast("Updated locally (couldn't reach sync relay)")
             }
-        } else if !isMoodWhiplash {
-            showToast("\(myPetProfile.name) is now \(action.title) \(action.emoji)")
+        } else {
+            await pushStateToActiveLiveActivities()
+            if activeSoloQuirk == nil {
+                showToast("\(myPetProfile.name) is now \(action.title) \(action.emoji)")
+            }
         }
     }
 
-    /// Sends a message that pushes a notification on the connected iPhone, plus checks secret phrase triggers!
+    /// Sends a message that pushes a notification on the connected iPhone, with a very low chance for synced special animations!
     public func sendMyMessage(_ rawMessage: String, optionalAction: PetAction? = nil) async {
         guard let cleaned = Self.cleanOptionalMessage(rawMessage) else { return }
         let now = Date().timeIntervalSince1970
@@ -425,62 +434,59 @@ public final class PairSyncService: ObservableObject {
         }
         myMessage = cleaned
         storage.myMessage = cleaned
+        if storage.isPaired {
+            clearSoloQuirkLocally()
+        }
 
-        var triggeredDuo: RarePetInteraction?
+        var candidateDuo: RarePetInteraction?
         if storage.isPaired, let connectedPet = partnerPet {
-            if let phraseDuo = Self.keywordTriggeredDuo(for: cleaned) {
-                triggeredDuo = makeDuoEventWithRareSkitChance(
-                    standardKind: phraseDuo,
-                    standardBadge: "💬 MESSAGE REACTION",
-                    now: now,
-                    standardDuration: 44,
-                    ultraRareProbability: 0.035
+            let keywordMatches = Self.keywordTriggeredCandidates(for: cleaned)
+            if !keywordMatches.isEmpty {
+                candidateDuo = rollSyncedSpecialInteraction(
+                    triggerChance: Self.keywordMessageTriggerChance,
+                    preferredKinds: keywordMatches,
+                    now: now
                 )
             } else if let optionalAction, optionalAction == connectedPet.action {
-                let twinKind = Self.pickTwinStatusDuo(for: optionalAction)
-                triggeredDuo = makeDuoEventWithRareSkitChance(
-                    standardKind: twinKind,
-                    standardBadge: "⚡ TWIN STATUS (\(optionalAction.title.uppercased()))",
-                    now: now,
-                    standardDuration: 44,
-                    ultraRareProbability: 0.035
+                candidateDuo = rollSyncedSpecialInteraction(
+                    triggerChance: Self.twinStatusTriggerChance,
+                    preferredKinds: Self.twinStatusCandidates(for: optionalAction),
+                    now: now
+                )
+            } else {
+                candidateDuo = rollSyncedSpecialInteraction(
+                    triggerChance: Self.normalMessageTriggerChance,
+                    preferredKinds: [],
+                    now: now
                 )
             }
-        } else if let soloReaction = Self.keywordTriggeredSoloQuirk(for: cleaned) {
-            let quirk = SoloPetQuirk(
-                action: soloReaction,
-                triggerBadge: "💬 MESSAGE REACTION",
-                startedAt: now,
-                duration: 32
-            )
-            applySoloQuirk(quirk, toastText: nil)
+        } else if !storage.isPaired {
+            maybeRollRareSoloQuirk(preferredAction: Self.keywordTriggeredSoloQuirk(for: cleaned), now: now)
         }
-
-        if let triggeredDuo {
-            await applyRareInteraction(triggeredDuo, broadcastToPartner: false, pushIslandNow: false)
-        }
-
-        await pushStateToActiveLiveActivities()
 
         if storage.isPaired {
             let ok = await broadcastMyPetState(
                 isExplicitUpdate: true,
                 notifyMessage: true,
-                piggybackedRare: triggeredDuo
+                piggybackedRare: candidateDuo
             )
             if ok {
-                if triggeredDuo == nil {
+                if let candidateDuo {
+                    await applyRareInteraction(candidateDuo, broadcastToPartner: false, pushIslandNow: true)
+                } else {
+                    await pushStateToActiveLiveActivities()
                     if let connectedPet = partnerPet {
                         showToast("💬 \(myPetProfile.name) → \(connectedPet.name): “\(cleaned)”")
                     } else {
                         showToast("💬 \(myPetProfile.name): “\(cleaned)”")
                     }
-                    await maybeRollSpecialMoment(probability: 0.14)
                 }
             } else {
+                await pushStateToActiveLiveActivities()
                 showToast("Saved locally (couldn't reach sync relay)")
             }
         } else {
+            await pushStateToActiveLiveActivities()
             showToast("💬 \(myPetProfile.name): “\(cleaned)”")
         }
     }
@@ -494,88 +500,12 @@ public final class PairSyncService: ObservableObject {
         }
     }
 
-    /// Interactive snoot-boop (single tap) or dizzy spin (rapid triple-tap) on your pet!
-    public func boopMyPet() async {
-        let now = Date().timeIntervalSince1970
-        recentBoopTimestamps = recentBoopTimestamps.filter { now - $0 <= 3.2 }
-        recentBoopTimestamps.append(now)
-
-        if recentBoopTimestamps.count >= 3 {
-            recentBoopTimestamps.removeAll()
-            if storage.isPaired, partnerPet != nil {
-                let event = RarePetInteraction(
-                    kind: .spinIntoDizzy,
-                    triggerBadge: "🌀 TRIPLE BOOP",
-                    startedAt: now,
-                    duration: 38
-                )
-                await applyRareInteraction(event, broadcastToPartner: true, pushIslandNow: true)
-            } else {
-                let quirk = SoloPetQuirk(
-                    action: .spinning,
-                    triggerBadge: "🌀 TRIPLE BOOP",
-                    startedAt: now,
-                    duration: 28
-                )
-                applySoloQuirk(quirk, toastText: "🌀 \(myPetProfile.name) is spinning in circles!")
-                await pushStateToActiveLiveActivities()
-            }
-            return
-        }
-
-        let quirk = SoloPetQuirk(
-            action: .booping,
-            triggerBadge: "🐽 SNOOT BOOP",
-            startedAt: now,
-            duration: 26
-        )
-        applySoloQuirk(quirk, toastText: "🐽 Booped \(myPetProfile.name)'s snoot!")
-        await pushStateToActiveLiveActivities()
-    }
-
-    /// Triggers a surprise combined interaction (when paired) or rare solo quirk (when solo) on demand.
-    public func triggerSurpriseSpecial() async {
-        let now = Date().timeIntervalSince1970
-        var rng = SystemRandomNumberGenerator()
-
-        if storage.isPaired, partnerPet != nil {
-            let canRollUltraRare = Double.random(in: 0..<1, using: &rng) < 0.04
-            let candidatePool = canRollUltraRare
-                ? RareInteractionKind.ultraRareSkitCases
-                : RareInteractionKind.standardCases
-            let pool = candidatePool.filter { $0 != activeRareInteraction?.kind }
-            guard let chosen = pool.randomElement(using: &rng) ?? candidatePool.randomElement(using: &rng) else {
-                return
-            }
-            let event = RarePetInteraction(
-                kind: chosen,
-                triggerBadge: chosen.isUltraRareLongSkit ? "🌟 ULTRA-RARE STORY SKIT" : "🎲 SURPRISE MOMENT",
-                startedAt: now,
-                duration: chosen.defaultDuration
-            )
-            await applyRareInteraction(event, broadcastToPartner: true, pushIslandNow: true)
-        } else {
-            let pool = PetAction.quirkActions.filter { $0 != activeSoloQuirk?.action }
-            guard let chosen = pool.randomElement(using: &rng) ?? PetAction.quirkActions.first else {
-                return
-            }
-            let quirk = SoloPetQuirk(
-                action: chosen,
-                triggerBadge: "🎲 SURPRISE QUIRK",
-                startedAt: now,
-                duration: 34
-            )
-            applySoloQuirk(quirk, toastText: "✨ \(myPetProfile.name) \(chosen.statusPhrase) \(chosen.emoji)")
-            await pushStateToActiveLiveActivities()
-        }
-    }
-
     public func handleDynamicIslandActionTap(_ action: PetAction) async {
         reloadFromStorage()
-        await setMyPetAction(action)
         if storage.isPaired {
             await pollLatestMessages()
         }
+        await setMyPetAction(action)
     }
 
     // MARK: - Pairing Lifecycle
@@ -585,6 +515,7 @@ public final class PairSyncService: ObservableObject {
         guard !normalized.isEmpty else { return }
 
         NotificationManager.shared.configureAndRequestPermission()
+        clearSoloQuirkLocally()
 
         let isNewRoom = normalized != pairCode
         pairCode = normalized
@@ -610,6 +541,7 @@ public final class PairSyncService: ObservableObject {
 
     /// Ensures paired devices stay seamlessly linked on launch and across in-place IPA updates.
     public func handleAppBecameActive() async {
+        endBackgroundStreamGracePeriod()
         let didUpgradeSchema = storage.consumeDidUpgradeSchemaIfNeeded()
         if didUpgradeSchema {
             reloadFromStorage()
@@ -618,6 +550,7 @@ public final class PairSyncService: ObservableObject {
             await pushStateToActiveLiveActivities()
             return
         }
+        clearSoloQuirkLocally()
         startRealtimeListeners()
         await pollLatestMessages()
         if didUpgradeSchema {
@@ -626,7 +559,46 @@ public final class PairSyncService: ObservableObject {
         await pushStateToActiveLiveActivities()
     }
 
+    /// Keeps the lightweight SSE sync listener alive during iOS's ~30s Home Screen background grace window
+    /// so swiping up to watch the Dynamic Island receives partner actions and special animations live!
+    public func enterBackgroundStreamGracePeriod() {
+        fallbackPollTask?.cancel()
+        fallbackPollTask = nil
+        rareRollTask?.cancel()
+        rareRollTask = nil
+
+        guard storage.isPaired,
+              !ProcessInfo.processInfo.isLowPowerModeEnabled,
+              let beginWork = beginBackgroundWork else {
+            stopRealtimeListeners()
+            return
+        }
+
+        backgroundStreamToken?.end()
+        backgroundStreamToken = nil
+
+        if streamTask == nil {
+            startStreamSocketOnly()
+        }
+
+        let token = beginWork { [weak self] in
+            self?.backgroundStreamToken = nil
+            self?.stopRealtimeListeners()
+        }
+        if let token {
+            backgroundStreamToken = token
+        } else {
+            stopRealtimeListeners()
+        }
+    }
+
+    public func endBackgroundStreamGracePeriod() {
+        backgroundStreamToken?.end()
+        backgroundStreamToken = nil
+    }
+
     public func leavePairRoom() async {
+        endBackgroundStreamGracePeriod()
         stopRealtimeListeners()
         rareExpiryTask?.cancel()
         pairCode = ""
@@ -642,7 +614,7 @@ public final class PairSyncService: ObservableObject {
         await pushStateToActiveLiveActivities()
     }
 
-    public func startRealtimeListeners() {
+    private func startStreamSocketOnly() {
         if streamTask != nil {
             refreshConnectionBadge(connected: isStreamConnected)
             return
@@ -694,26 +666,39 @@ public final class PairSyncService: ObservableObject {
                 retryDelaySeconds = min(retryDelaySeconds * 2, 60)
             }
         }
+    }
 
-        // Fallback poll runs ONLY when the live push stream is disconnected.
-        fallbackPollTask = Task { [weak self] in
-            while !Task.isCancelled {
-                let intervalSeconds: UInt64 = ProcessInfo.processInfo.isLowPowerModeEnabled ? 240 : 120
-                try? await Task.sleep(nanoseconds: intervalSeconds * 1_000_000_000)
-                if Task.isCancelled { break }
-                let streamHealthy = await MainActor.run { self?.isStreamConnected ?? false }
-                if !streamHealthy {
-                    await self?.pollLatestMessages()
+    public func startRealtimeListeners() {
+        guard activeTopicURLString != nil else {
+            connectionStatus = .unpaired
+            return
+        }
+
+        startStreamSocketOnly()
+
+        if fallbackPollTask == nil {
+            // Fallback poll runs ONLY when the live push stream is disconnected.
+            fallbackPollTask = Task { [weak self] in
+                while !Task.isCancelled {
+                    let intervalSeconds: UInt64 = ProcessInfo.processInfo.isLowPowerModeEnabled ? 240 : 120
+                    try? await Task.sleep(nanoseconds: intervalSeconds * 1_000_000_000)
+                    if Task.isCancelled { break }
+                    let streamHealthy = await MainActor.run { self?.isStreamConnected ?? false }
+                    if !streamHealthy {
+                        await self?.pollLatestMessages()
+                    }
                 }
             }
         }
 
-        // Low-frequency spontaneous roller (paused automatically in Low Power Mode).
-        rareRollTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 90_000_000_000)
-                if Task.isCancelled { break }
-                await self?.maybeRollSpecialMoment(probability: 0.18)
+        if rareRollTask == nil {
+            // Very low-frequency spontaneous roller (every 5 minutes, paused in Low Power Mode).
+            rareRollTask = Task { [weak self] in
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 300_000_000_000)
+                    if Task.isCancelled { break }
+                    await self?.maybeRollSpontaneousInteraction()
+                }
             }
         }
     }
@@ -728,103 +713,119 @@ public final class PairSyncService: ObservableObject {
         rareRollTask = nil
     }
 
-    // MARK: - Special-Case Trigger Rules (Twin Match, Clash, Secret Words & Time-Weighted Chaos)
+    // MARK: - Synced Low-Probability Rarity Roller (Rare, Super Rare & Ultra Rare)
 
-    private static func pickTwinStatusDuo(for action: PetAction) -> RareInteractionKind {
-        var rng = SystemRandomNumberGenerator()
-        let choices: [RareInteractionKind]
+    private static func twinStatusCandidates(for action: PetAction) -> [RareInteractionKind] {
         switch action {
-        case .sleeping:  choices = [.cozyNapTruce, .cozyNapTruce, .cozyNapTruce, .blanketHog]
-        case .eating:    choices = [.doubleBegSquad, .stealingFood]
-        case .walk:      choices = [.zoomieChase, .zoomieCrash]
-        case .working:   choices = [.sharedBraincell, .interruptWork]
-        case .review:    choices = [.sharedBraincell, .doubleSideEye]
-        case .waiting:   choices = [.doubleBegSquad, .sittingOnHead]
-        case .idle:      choices = [.sittingOnHead, .buttSniff]
-        case .happy:     choices = [.tugOfWar, .biteyFace]
-        case .celebrate: choices = [.zoomieChase, .spinIntoDizzy]
-        case .waving:    choices = [.buttSniff, .tugOfWar]
-        case .love:      choices = [.cheerUpLove]
-        case .sad:       choices = [.cheerUpLove]
-        case .confused:  choices = [.sharedBraincell, .blameEachOther]
-        case .grumpy:    choices = [.barkArgument, .pawBonk]
-        case .zoomies:   choices = [.zoomieCrash, .zoomieChase]
-        case .begging:   choices = [.doubleBegSquad, .stealingFood]
-        case .spinning, .dizzy: choices = [.spinIntoDizzy]
-        case .booping:   choices = [.cheerUpLove, .pawBonk]
-        case .splooting: choices = [.cozyNapTruce, .blanketHog]
-        case .sideEye:   choices = [.doubleSideEye, .blameEachOther]
-        case .blep:      choices = [.sharedBraincell, .sittingOnHead]
+        case .sleeping:
+            return [.cozyNapTruce, .blanketHog, .skitBlanketWarBurrito]
+        case .eating:
+            return [.doubleBegSquad, .stealingFood, .foodEnvyBeg, .skitKibbleHeist]
+        case .walk:
+            return [.zoomieChase, .zoomieCrash, .skitZoomieCrashWipeout]
+        case .working:
+            return [.sharedBraincell, .interruptWork, .skitWfhMeetingDisaster]
+        case .review:
+            return [.sharedBraincell, .doubleSideEye, .skitDetectiveWhodunnit]
+        case .waiting:
+            return [.doubleBegSquad, .sittingOnHead, .skitPersonalSpaceHeadSit]
+        case .idle:
+            return [.sittingOnHead, .buttSniff, .cozyNapTruce]
+        case .happy:
+            return [.tugOfWar, .biteyFace, .skitBiteyFaceToNap]
+        case .celebrate:
+            return [.zoomieChase, .spinIntoDizzy, .skitSadToPartyRescue]
+        case .waving:
+            return [.buttSniff, .tugOfWar, .cheerUpLove]
+        case .love:
+            return [.cheerUpLove, .cozyNapTruce, .skitSadToPartyRescue]
+        case .sad:
+            return [.cheerUpLove, .skitSadToPartyRescue]
+        case .confused:
+            return [.sharedBraincell, .blameEachOther, .skitDetectiveWhodunnit]
+        case .grumpy:
+            return [.barkArgument, .pawBonk, .blameEachOther, .skitAnnoyUntilBonk]
+        case .zoomies:
+            return [.zoomieCrash, .zoomieChase, .skitZoomieCrashWipeout]
+        case .begging:
+            return [.doubleBegSquad, .stealingFood, .foodEnvyBeg, .skitKibbleHeist]
+        case .spinning, .dizzy:
+            return [.spinIntoDizzy, .skitZoomieCrashWipeout]
+        case .booping:
+            return [.cheerUpLove, .pawBonk]
+        case .splooting:
+            return [.cozyNapTruce, .blanketHog, .skitBlanketWarBurrito]
+        case .sideEye:
+            return [.doubleSideEye, .blameEachOther, .skitDetectiveWhodunnit]
+        case .blep:
+            return [.sharedBraincell, .sittingOnHead, .skitPersonalSpaceHeadSit]
         }
-        return choices.randomElement(using: &rng) ?? .cheerUpLove
     }
 
-    private static func pickClashStatusDuo(first: PetAction, second: PetAction) -> RareInteractionKind? {
-        guard first != second else { return nil }
+    private static func clashStatusCandidates(first: PetAction, second: PetAction) -> [RareInteractionKind] {
+        guard first != second else { return [] }
         let pair: Set<PetAction> = [first, second]
-        var rng = SystemRandomNumberGenerator()
 
         let focusSet: Set<PetAction> = [.working, .review]
         let energeticSet: Set<PetAction> = [.happy, .celebrate, .waving, .walk, .zoomies]
         if !pair.isDisjoint(with: focusSet) && !pair.isDisjoint(with: energeticSet) {
-            return .interruptWork
+            return [.interruptWork, .sharedBraincell, .skitWfhMeetingDisaster]
         }
 
         if pair.contains(.eating) && !pair.isDisjoint(with: [.waiting, .sad, .begging, .grumpy, .confused]) {
-            return [.foodEnvyBeg, .foodEnvyBeg, .stealingFood].randomElement(using: &rng)
+            return [.foodEnvyBeg, .stealingFood, .doubleBegSquad, .skitKibbleHeist]
         }
 
         if pair.contains(.sleeping) && !pair.isDisjoint(with: [.happy, .celebrate, .walk, .grumpy, .waving]) {
-            return [.earNibbleAnnoy, .sittingOnHead].randomElement(using: &rng)
+            return [.earNibbleAnnoy, .sittingOnHead, .blanketHog, .skitPersonalSpaceHeadSit]
         }
 
         if pair.contains(.sad) && !pair.isDisjoint(with: [.love, .happy, .celebrate, .waving]) {
-            return .cheerUpLove
+            return [.cheerUpLove, .skitSadToPartyRescue]
         }
 
         if pair.contains(.grumpy) && !pair.isDisjoint(with: [.confused, .waiting, .idle]) {
-            return [.blameEachOther, .doubleSideEye].randomElement(using: &rng)
+            return [.blameEachOther, .doubleSideEye, .barkArgument, .skitDetectiveWhodunnit]
         }
 
         if pair.contains(.grumpy) && !pair.isDisjoint(with: [.happy, .celebrate, .love]) {
-            return .pawBonk
+            return [.pawBonk, .earNibbleAnnoy, .skitAnnoyUntilBonk]
         }
 
-        return nil
+        return []
     }
 
-    private static func keywordTriggeredDuo(for message: String) -> RareInteractionKind? {
+    private static func keywordTriggeredCandidates(for message: String) -> [RareInteractionKind] {
         let lower = message.lowercased()
-        var rng = SystemRandomNumberGenerator()
 
         if containsAny(lower, ["love", "miss u", "miss you", "hug", "kiss", "cuddle", "❤️", "💕", "🥰", "😘"]) {
-            return .cheerUpLove
+            return [.cheerUpLove, .cozyNapTruce, .skitSadToPartyRescue]
         }
         if containsAny(lower, ["goodnight", "gn", "sleep", "nap", "bedtime", "cozy", "🌙", "💤"]) {
-            return [.cozyNapTruce, .cozyNapTruce, .blanketHog].randomElement(using: &rng)
+            return [.cozyNapTruce, .blanketHog, .skitBlanketWarBurrito]
         }
         if containsAny(lower, ["food", "hungry", "eat", "snack", "dinner", "lunch", "treat", "boba", "pizza", "🍖", "🍕", "🍔", "🍜"]) {
-            return [.stealingFood, .doubleBegSquad, .foodEnvyBeg].randomElement(using: &rng)
+            return [.stealingFood, .doubleBegSquad, .foodEnvyBeg, .skitKibbleHeist]
         }
         if containsAny(lower, ["work", "busy", "meeting", "study", "focus", "coding", "wfh", "💻"]) {
-            return .interruptWork
+            return [.interruptWork, .sharedBraincell, .skitWfhMeetingDisaster]
         }
         if containsAny(lower, ["sus", "side eye", "side-eye", "judge", "bruh", "👀", "😒"]) {
-            return .doubleSideEye
+            return [.doubleSideEye, .blameEachOther, .skitDetectiveWhodunnit]
         }
         if containsAny(lower, ["fault", "blame", "wasn't me", "wasnt me", "who did"]) {
-            return .blameEachOther
+            return [.blameEachOther, .skitDetectiveWhodunnit]
         }
         if containsAny(lower, ["bonk", "mad", "hmph", "argue", "no!", "stop", "😤", "💢"]) {
-            return [.pawBonk, .barkArgument, .earNibbleAnnoy].randomElement(using: &rng)
+            return [.pawBonk, .barkArgument, .earNibbleAnnoy, .skitAnnoyUntilBonk]
         }
         if containsAny(lower, ["zoom", "walk", "chase", "run", "play", "tug", "party", "🎉", "⚡"]) {
-            return [.zoomieChase, .tugOfWar, .biteyFace, .zoomieCrash].randomElement(using: &rng)
+            return [.zoomieChase, .tugOfWar, .biteyFace, .zoomieCrash, .skitTugOfWarSaga, .skitBiteyFaceToNap]
         }
         if containsAny(lower, ["dizzy", "spin", "braincell", "confused", "🌀", "😵‍💫"]) {
-            return [.spinIntoDizzy, .sharedBraincell].randomElement(using: &rng)
+            return [.spinIntoDizzy, .sharedBraincell, .skitZoomieCrashWipeout]
         }
-        return nil
+        return []
     }
 
     private static func keywordTriggeredSoloQuirk(for message: String) -> PetAction? {
@@ -844,9 +845,6 @@ public final class PairSyncService: ObservableObject {
         if containsAny(lower, ["omw", "hurry", "run", "zoom", "lets go", "let's go", "💨"]) {
             return .zoomies
         }
-        if containsAny(lower, ["boop", "poke", "hi!", "miss u", "miss you", "🐽"]) {
-            return .booping
-        }
         if containsAny(lower, ["spin", "dizzy", "crazy", "🌀", "😵‍💫"]) {
             return .spinning
         }
@@ -857,89 +855,147 @@ public final class PairSyncService: ObservableObject {
         needles.contains { haystack.contains($0) }
     }
 
-    private static func pickTimeWeightedRandomDuo() -> RareInteractionKind {
-        var rng = SystemRandomNumberGenerator()
+    private static func timeWeightedPool(for rarity: InteractionRarity) -> [RareInteractionKind] {
+        let basePool = RareInteractionKind.cases(for: rarity)
+        guard !basePool.isEmpty else { return RareInteractionKind.allCases }
+
         let hour = Calendar.current.component(.hour, from: Date())
-        var pool = RareInteractionKind.standardCases
+        let bonusCandidates: [RareInteractionKind]
         if hour >= 22 || hour < 7 {
-            pool += [.cozyNapTruce, .cozyNapTruce, .blanketHog, .earNibbleAnnoy]
+            bonusCandidates = [.cozyNapTruce, .blanketHog, .earNibbleAnnoy, .skitBlanketWarBurrito, .skitBiteyFaceToNap]
         } else if (11...13).contains(hour) || (18...20).contains(hour) {
-            pool += [.stealingFood, .foodEnvyBeg, .doubleBegSquad]
+            bonusCandidates = [.stealingFood, .foodEnvyBeg, .doubleBegSquad, .skitKibbleHeist]
         } else if (9...17).contains(hour) {
-            pool += [.interruptWork, .sharedBraincell, .sittingOnHead, .tugOfWar]
+            bonusCandidates = [.interruptWork, .sharedBraincell, .sittingOnHead, .tugOfWar, .skitWfhMeetingDisaster]
+        } else {
+            bonusCandidates = []
         }
-        return pool.randomElement(using: &rng) ?? .tugOfWar
+
+        let matchingBonuses = bonusCandidates.filter { $0.rarity == rarity }
+        return basePool + matchingBonuses
     }
 
-    private func makeDuoEventWithRareSkitChance(
-        standardKind: RareInteractionKind,
-        standardBadge: String,
-        now: TimeInterval,
-        standardDuration: TimeInterval,
-        ultraRareProbability: Double
-    ) -> RarePetInteraction {
+    private func rollSyncedSpecialInteraction(
+        triggerChance: Double,
+        preferredKinds: [RareInteractionKind],
+        now: TimeInterval
+    ) -> RarePetInteraction? {
+        guard !ProcessInfo.processInfo.isLowPowerModeEnabled else { return nil }
+        guard activeRareInteraction?.isActive(at: now) != true else { return nil }
+        guard now - storage.lastRareInteractionAt >= Self.rareInteractionCooldown else { return nil }
+
         var rng = SystemRandomNumberGenerator()
-        if now - storage.lastUltraRareSkitAt >= Self.ultraRareSkitCooldown,
-           Double.random(in: 0..<1, using: &rng) < ultraRareProbability {
-            let skit = standardKind.matchingUltraRareSkit
-            if skit.isUltraRareLongSkit {
-                return RarePetInteraction(
-                    kind: skit,
-                    triggerBadge: "🌟 ULTRA-RARE STORY SKIT",
-                    startedAt: now,
-                    duration: skit.defaultDuration
-                )
+        guard Double.random(in: 0..<1, using: &rng) < triggerChance else {
+            return nil
+        }
+
+        let canRollUltra = (now - storage.lastUltraRareSkitAt >= Self.ultraRareCooldown)
+        let canRollSuper = (now - storage.lastSuperRareInteractionAt >= Self.superRareCooldown)
+        let tierRoll = Double.random(in: 0..<1, using: &rng)
+
+        let targetRarity: InteractionRarity
+        if tierRoll < Self.ultraRareTierWeight && canRollUltra {
+            targetRarity = .ultraRare
+        } else if tierRoll < (Self.ultraRareTierWeight + Self.superRareTierWeight) && canRollSuper {
+            targetRarity = .superRare
+        } else {
+            targetRarity = .rare
+        }
+
+        var expandedPreferred: [RareInteractionKind] = []
+        for candidate in preferredKinds {
+            if !expandedPreferred.contains(candidate) {
+                expandedPreferred.append(candidate)
+            }
+            let mappedSkit = candidate.matchingUltraRareSkit
+            if !expandedPreferred.contains(mappedSkit) {
+                expandedPreferred.append(mappedSkit)
             }
         }
+
+        let lastKind = activeRareInteraction?.kind
+        let themedTierPool = expandedPreferred.filter { $0.rarity == targetRarity && $0 != lastKind }
+        let chosen: RareInteractionKind
+        if let pickedThemed = themedTierPool.randomElement(using: &rng) {
+            chosen = pickedThemed
+        } else {
+            let generalPool = Self.timeWeightedPool(for: targetRarity)
+            let nonRepeating = generalPool.filter { $0 != lastKind }
+            chosen = (nonRepeating.isEmpty ? generalPool : nonRepeating).randomElement(using: &rng) ?? .tugOfWar
+        }
+
         return RarePetInteraction(
-            kind: standardKind,
-            triggerBadge: standardBadge,
+            kind: chosen,
+            triggerBadge: chosen.rarity.badgeLabel,
             startedAt: now,
-            duration: standardDuration
+            duration: chosen.defaultDuration
         )
     }
 
-    private func maybeRollSpecialMoment(probability: Double) async {
+    private func maybeRollSpontaneousInteraction() async {
         guard !ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
-
         let now = Date().timeIntervalSince1970
-        guard now - storage.lastRareInteractionAt >= Self.randomInteractionCooldown else {
-            return
+
+        if storage.isPaired, partnerPet != nil {
+            guard let event = rollSyncedSpecialInteraction(
+                triggerChance: Self.spontaneousIdleTriggerChance,
+                preferredKinds: [],
+                now: now
+            ) else {
+                return
+            }
+            await applyRareInteraction(event, broadcastToPartner: true, pushIslandNow: true)
+        } else if !storage.isPaired {
+            maybeRollRareSoloQuirk(preferredAction: nil, now: now)
+            if activeSoloQuirk?.startedAt == now {
+                await pushStateToActiveLiveActivities()
+            }
         }
+    }
+
+    private func maybeRollRareSoloQuirk(preferredAction: PetAction?, now: TimeInterval) {
+        guard !ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
+        guard activeSoloQuirk?.isActive(at: now) != true else { return }
+        guard now - storage.lastRareInteractionAt >= Self.rareInteractionCooldown else { return }
 
         var rng = SystemRandomNumberGenerator()
-        guard Double.random(in: 0..<1, using: &rng) < probability else {
+        guard Double.random(in: 0..<1, using: &rng) < Self.soloQuirkTriggerChance else {
             return
         }
 
-        if storage.isPaired, partnerPet != nil, activeRareInteraction == nil {
-            let rollUltraRare = (now - storage.lastUltraRareSkitAt >= Self.ultraRareSkitCooldown)
-                && (Double.random(in: 0..<1, using: &rng) < 0.04)
-            let chosen: RareInteractionKind
-            if rollUltraRare, let randomSkit = RareInteractionKind.ultraRareSkitCases.randomElement(using: &rng) {
-                chosen = randomSkit
-            } else {
-                chosen = Self.pickTimeWeightedRandomDuo()
-            }
-            let event = RarePetInteraction(
-                kind: chosen,
-                triggerBadge: chosen.isUltraRareLongSkit ? "🌟 ULTRA-RARE STORY SKIT" : "🎲 RANDOM CHAOS",
-                startedAt: now,
-                duration: chosen.isUltraRareLongSkit ? chosen.defaultDuration : 40
-            )
-            await applyRareInteraction(event, broadcastToPartner: true, pushIslandNow: true)
-        } else if !storage.isPaired, activeSoloQuirk == nil {
-            guard let quirkAction = PetAction.quirkActions.randomElement(using: &rng) else { return }
-            storage.lastRareInteractionAt = now
-            let quirk = SoloPetQuirk(
-                action: quirkAction,
-                triggerBadge: "🎲 RANDOM QUIRK",
-                startedAt: now,
-                duration: 32
-            )
-            applySoloQuirk(quirk, toastText: "✨ \(myPetProfile.name) \(quirkAction.statusPhrase) \(quirkAction.emoji)")
-            await pushStateToActiveLiveActivities()
+        let allowedQuirks = PetAction.quirkActions.filter { $0 != .booping }
+        let sanitizedPreferred = (preferredAction == .booping) ? nil : preferredAction
+        guard let quirkAction = sanitizedPreferred ?? allowedQuirks.randomElement(using: &rng) else {
+            return
         }
+
+        storage.lastRareInteractionAt = now
+        let quirk = SoloPetQuirk(
+            action: quirkAction,
+            triggerBadge: "✨ RARE QUIRK",
+            startedAt: now,
+            duration: 32
+        )
+        applySoloQuirk(quirk, toastText: "✨ \(myPetProfile.name) \(quirkAction.statusPhrase) \(quirkAction.emoji)")
+    }
+
+    /// Deterministic conflict resolution so if both phones roll a special animation simultaneously,
+    /// both converge on the exact same winner (higher rarity -> earlier `startedAt` -> lexicographic `id`).
+    private static func shouldAdoptIncomingInteraction(
+        current: RarePetInteraction?,
+        incoming: RarePetInteraction,
+        now: TimeInterval
+    ) -> Bool {
+        guard incoming.isActive(at: now) else { return false }
+        guard let current, current.isActive(at: now) else { return true }
+        if current.id == incoming.id { return false }
+        if incoming.kind.rarity != current.kind.rarity {
+            return incoming.kind.rarity > current.kind.rarity
+        }
+        if abs(incoming.startedAt - current.startedAt) > 0.001 {
+            return incoming.startedAt < current.startedAt
+        }
+        return incoming.id < current.id
     }
 
     private func applyRareInteraction(
@@ -947,25 +1003,8 @@ public final class PairSyncService: ObservableObject {
         broadcastToPartner: Bool,
         pushIslandNow: Bool
     ) async {
-        guard event.isActive(), let partnerPet else { return }
-        clearSoloQuirkLocally()
-        storage.lastRareInteractionAt = event.startedAt
-        if event.kind.isUltraRareLongSkit {
-            storage.lastUltraRareSkitAt = event.startedAt
-        }
-        storage.rareInteraction = event
-        activeRareInteraction = event
-        scheduleRareInteractionExpiry(event)
-
-        let description = event.kind.descriptionText(
-            myPetName: myPetProfile.name,
-            partnerPetName: partnerPet.name
-        )
-        showToast("\(event.kind.badgeEmoji) \(description)")
-
-        if pushIslandNow {
-            await pushStateToActiveLiveActivities()
-        }
+        let now = Date().timeIntervalSince1970
+        guard event.isActive(at: now), let partnerPet else { return }
 
         if broadcastToPartner {
             let wire = PairWireMessage(
@@ -977,7 +1016,30 @@ public final class PairSyncService: ObservableObject {
                 isExplicitUpdate: false,
                 rareInteraction: event
             )
-            _ = await postWireMessage(wire)
+            // Confirm relay delivery first so neither phone plays an unsynced duo animation while offline.
+            guard await postWireMessage(wire) else { return }
+        }
+
+        clearSoloQuirkLocally()
+        storage.lastRareInteractionAt = max(storage.lastRareInteractionAt, event.startedAt)
+        if event.kind.rarity >= .superRare {
+            storage.lastSuperRareInteractionAt = max(storage.lastSuperRareInteractionAt, event.startedAt)
+        }
+        if event.kind.rarity == .ultraRare {
+            storage.lastUltraRareSkitAt = max(storage.lastUltraRareSkitAt, event.startedAt)
+        }
+        storage.rareInteraction = event
+        activeRareInteraction = event
+        scheduleRareInteractionExpiry(event)
+
+        let description = event.kind.descriptionText(
+            myPetName: myPetProfile.name,
+            partnerPetName: partnerPet.name
+        )
+        showToast("\(event.effectiveTriggerBadge) • \(description)")
+
+        if pushIslandNow {
+            await pushStateToActiveLiveActivities()
         }
     }
 
@@ -1043,6 +1105,10 @@ public final class PairSyncService: ObservableObject {
         piggybackedRare: RarePetInteraction? = nil
     ) async -> Bool {
         guard storage.isPaired else { return false }
+        let now = Date().timeIntervalSince1970
+        let effectiveRare = piggybackedRare ?? (
+            activeRareInteraction?.isActive(at: now) == true ? activeRareInteraction : nil
+        )
         let wire = PairWireMessage(
             kind: .petState,
             senderDeviceId: storage.deviceId,
@@ -1051,7 +1117,7 @@ public final class PairSyncService: ObservableObject {
             message: myMessage,
             isExplicitUpdate: isExplicitUpdate,
             notifyMessage: notifyMessage,
-            rareInteraction: piggybackedRare
+            rareInteraction: effectiveRare
         )
         return await postWireMessage(wire)
     }
@@ -1114,21 +1180,31 @@ public final class PairSyncService: ObservableObject {
             return false
         }
 
+        let bgToken = beginBackgroundWork?({})
+        defer { bgToken?.end() }
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.timeoutInterval = 8
         request.setValue("text/plain; charset=utf-8", forHTTPHeaderField: "Content-Type")
         request.httpBody = encryptedBody
 
-        do {
-            let (_, response) = try await requestSession.data(for: request)
-            if let http = response as? HTTPURLResponse {
-                return (200..<300).contains(http.statusCode)
+        for attempt in 0..<2 {
+            do {
+                let (_, response) = try await requestSession.data(for: request)
+                if let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) {
+                    return true
+                }
+            } catch {
+                if Task.isCancelled { return false }
             }
-            return false
-        } catch {
-            return false
+
+            if attempt == 0 {
+                try? await Task.sleep(nanoseconds: 350_000_000)
+                if Task.isCancelled { return false }
+            }
         }
+        return false
     }
 
     private func handleEnvelopeLine(_ line: String) async {
@@ -1194,13 +1270,14 @@ public final class PairSyncService: ObservableObject {
             return ProcessOutcome(didMutate: false, alertBannerText: nil)
         }
 
-        // Handle dedicated Rare Two-Dog Interaction packets (silent, no notification)
+        // Handle dedicated Rare Two-Dog Interaction packets (silent, synced across both phones)
         if wire.kind == .rareInteraction, let incomingRare = wire.rareInteraction, incomingRare.isActive(at: now) {
             let sanitizedPartner = Self.sanitizeIncomingSnapshot(wire.petSnapshot)
             partnerPet = sanitizedPartner
             storage.partnerPet = sanitizedPartner
+            refreshConnectionBadge(connected: true)
 
-            if activeRareInteraction?.id != incomingRare.id {
+            if Self.shouldAdoptIncomingInteraction(current: activeRareInteraction, incoming: incomingRare, now: now) {
                 await applyRareInteraction(incomingRare, broadcastToPartner: false, pushIslandNow: false)
                 return ProcessOutcome(didMutate: true, alertBannerText: nil)
             }
@@ -1229,24 +1306,9 @@ public final class PairSyncService: ObservableObject {
         refreshConnectionBadge(connected: true)
 
         var didApplyRare = false
-        if let incomingRare = wire.rareInteraction, incomingRare.isActive(at: now),
-           activeRareInteraction?.id != incomingRare.id {
+        if let incomingRare = wire.rareInteraction,
+           Self.shouldAdoptIncomingInteraction(current: activeRareInteraction, incoming: incomingRare, now: now) {
             await applyRareInteraction(incomingRare, broadcastToPartner: false, pushIslandNow: false)
-            didApplyRare = true
-        } else if isStrictlyNewer,
-                  wire.isExplicitUpdate,
-                  safeSnapshot.action == myAction,
-                  activeRareInteraction == nil {
-            // Receiver-side Twin Status Match safety net when both pets land on the exact same status!
-            let twinKind = Self.pickTwinStatusDuo(for: myAction)
-            let twinEvent = makeDuoEventWithRareSkitChance(
-                standardKind: twinKind,
-                standardBadge: "⚡ TWIN STATUS (\(myAction.title.uppercased()))",
-                now: now,
-                standardDuration: 44,
-                ultraRareProbability: 0.035
-            )
-            await applyRareInteraction(twinEvent, broadcastToPartner: true, pushIslandNow: false)
             didApplyRare = true
         }
 
