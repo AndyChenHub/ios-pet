@@ -312,8 +312,8 @@ private struct LockScreenPetBannerView: View {
                             .foregroundStyle(partner.themeColor)
 
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(partnerMessageSenderLabel(partnerPet: partner))
-                                .font(.system(size: 10, weight: .heavy, design: .rounded))
+                            Text("\(partner.name)'s message")
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
                                 .foregroundStyle(partner.themeColor)
                             Text("“\(partnerMessage)”")
                                 .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -378,13 +378,6 @@ private struct LockScreenPetBannerView: View {
         .padding(14)
     }
 
-    private func partnerMessageSenderLabel(partnerPet: IslandPetSnapshot) -> String {
-        if let owner = state.partnerOwnerName, !owner.isEmpty {
-            return "\(partnerPet.name) (\(owner))'S MESSAGE"
-        }
-        return "\(partnerPet.name.uppercased())'S MESSAGE"
-    }
-
     @ViewBuilder
     private func twoDogsStageHeader(
         myPet: IslandPetSnapshot,
@@ -433,19 +426,18 @@ private struct LockScreenPetBannerView: View {
             }
         } else {
             HStack(spacing: 10) {
-                dogPill(pet: myPet, flip: false, roleTag: "MY PET")
+                dogPill(pet: myPet, flip: false)
                 Spacer(minLength: 4)
                 dogPill(
                     pet: partnerPet,
-                    flip: shouldFlipRightDog(action: partnerPet.action),
-                    roleTag: state.partnerOwnerName.map { "\($0.uppercased())'S PET" } ?? "PARTNER"
+                    flip: shouldFlipRightDog(action: partnerPet.action)
                 )
             }
         }
     }
 
     @ViewBuilder
-    private func dogPill(pet: IslandPetSnapshot, flip: Bool, roleTag: String) -> some View {
+    private func dogPill(pet: IslandPetSnapshot, flip: Bool) -> some View {
         HStack(spacing: 8) {
             ZStack {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -465,13 +457,9 @@ private struct LockScreenPetBannerView: View {
                 )
             }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(roleTag)
-                    .font(.system(size: 9, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.5))
-                    .lineLimit(1)
+            VStack(alignment: .leading, spacing: 3) {
                 Text(pet.name)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .lineLimit(1)
                 Text("\(pet.action.emoji) \(pet.action.title)")

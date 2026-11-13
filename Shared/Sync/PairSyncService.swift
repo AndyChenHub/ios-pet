@@ -14,7 +14,7 @@ public struct PairWireMessage: Codable, Sendable {
 
     public var kind: Kind
     public var senderDeviceId: String
-    public var senderOwnerName: String
+    public var senderOwnerName: String?
     public var petSnapshot: IslandPetSnapshot
     public var message: String?
     public var isExplicitUpdate: Bool
@@ -25,7 +25,7 @@ public struct PairWireMessage: Codable, Sendable {
     public init(
         kind: Kind,
         senderDeviceId: String,
-        senderOwnerName: String,
+        senderOwnerName: String? = "",
         petSnapshot: IslandPetSnapshot,
         message: String? = nil,
         isExplicitUpdate: Bool = false,
@@ -258,14 +258,14 @@ public final class PairSyncService: ObservableObject {
                 // Small chance of triggering a spontaneous 2-dog interaction shortly after an update
                 await maybeRollRareInteraction(probability: 0.14)
             } else {
-                showToast("Updated locally (couldn't reach partner relay)")
+                showToast("Updated locally (couldn't reach sync relay)")
             }
         } else {
             showToast("\(myPetProfile.name) is now \(action.title) \(action.emoji)")
         }
     }
 
-    /// Sends a message that pushes a notification on the connected partner's iPhone.
+    /// Sends a message that pushes a notification on the connected iPhone.
     public func sendMyMessage(_ rawMessage: String, optionalAction: PetAction? = nil) async {
         guard let cleaned = Self.cleanOptionalMessage(rawMessage) else { return }
 
@@ -281,13 +281,17 @@ public final class PairSyncService: ObservableObject {
         if storage.isPaired {
             let ok = await broadcastMyPetState(isExplicitUpdate: true, notifyMessage: true)
             if ok {
-                showToast("💬 Sent “\(cleaned)” to partner!")
+                if let connectedPet = partnerPet {
+                    showToast("💬 \(myPetProfile.name) → \(connectedPet.name): “\(cleaned)”")
+                } else {
+                    showToast("💬 \(myPetProfile.name): “\(cleaned)”")
+                }
                 await maybeRollRareInteraction(probability: 0.14)
             } else {
-                showToast("Saved locally (couldn't reach partner relay)")
+                showToast("Saved locally (couldn't reach sync relay)")
             }
         } else {
-            showToast("Updated status note: “\(cleaned)”")
+            showToast("💬 \(myPetProfile.name): “\(cleaned)”")
         }
     }
 
@@ -450,7 +454,7 @@ public final class PairSyncService: ObservableObject {
             let wire = PairWireMessage(
                 kind: .rareInteraction,
                 senderDeviceId: storage.deviceId,
-                senderOwnerName: storage.myName,
+                senderOwnerName: "",
                 petSnapshot: myPetSnapshot,
                 message: myMessage,
                 isExplicitUpdate: false,
@@ -482,7 +486,7 @@ public final class PairSyncService: ObservableObject {
         let wire = PairWireMessage(
             kind: .petState,
             senderDeviceId: storage.deviceId,
-            senderOwnerName: storage.myName,
+            senderOwnerName: "",
             petSnapshot: myPetSnapshot,
             message: myMessage,
             isExplicitUpdate: isExplicitUpdate,
@@ -623,16 +627,14 @@ public final class PairSyncService: ObservableObject {
         let isStrictlyNewer = wire.sentAt > storage.lastAppliedRemoteSentAt
         storage.lastAppliedRemoteSentAt = wire.sentAt
 
-        let rawOwner = SharedStorage.sanitizeDisplayText(wire.senderOwnerName, maxLength: 20)
-        let safeOwner = rawOwner.isEmpty ? "Partner" : rawOwner
         let safeSnapshot = Self.sanitizeIncomingSnapshot(wire.petSnapshot)
         let safeMessage = Self.cleanOptionalMessage(wire.message)
 
-        partnerOwnerName = safeOwner
+        partnerOwnerName = nil
         partnerPet = safeSnapshot
         partnerMessage = safeMessage
 
-        storage.partnerOwnerName = safeOwner
+        storage.partnerOwnerName = nil
         storage.partnerPet = safeSnapshot
         storage.partnerMessage = safeMessage
 
@@ -646,7 +648,6 @@ public final class PairSyncService: ObservableObject {
             storage.lastNotifiedRemoteSentAt = wire.sentAt
             NotificationManager.shared.postPartnerMessageNotification(
                 partnerPetName: safeSnapshot.name,
-                partnerOwnerName: safeOwner,
                 partnerMessage: safeMessage,
                 dedupeKey: String(format: "%.3f", wire.sentAt)
             )

@@ -18,7 +18,6 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
 
     public func postPartnerMessageNotification(
         partnerPetName: String,
-        partnerOwnerName: String?,
         partnerMessage: String,
         dedupeKey: String
     ) {
@@ -26,11 +25,7 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
         guard !trimmed.isEmpty else { return }
 
         let content = UNMutableNotificationContent()
-        if let owner = partnerOwnerName, !owner.isEmpty {
-            content.title = "🐾 \(partnerPetName) (\(owner))"
-        } else {
-            content.title = "🐾 \(partnerPetName)"
-        }
+        content.title = "🐾 \(partnerPetName)'s message"
         content.body = "“\(trimmed)”"
         content.sound = .default
         content.threadIdentifier = "islandpup-partner-messages"

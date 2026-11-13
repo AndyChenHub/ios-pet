@@ -5,7 +5,6 @@ struct PairSetupSheet: View {
     @ObservedObject var syncService: PairSyncService
     @Environment(\.dismiss) private var dismiss
 
-    @State private var nameInput: String = ""
     @State private var joinCodeInput: String = ""
     @State private var relayInput: String = ""
     @State private var showAdvancedRelay: Bool = false
@@ -15,7 +14,14 @@ struct PairSetupSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    profileSection
+                    Text(
+                        syncService.partnerPet.map {
+                            "When connected, \(syncService.myPetProfile.name) & \($0.name) appear together on both Dynamic Islands!"
+                        } ?? "When connected, \(syncService.myPetProfile.name) & the second pet appear together on both Dynamic Islands!"
+                    )
+                        .font(.system(size: 13, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.65))
+
                     if syncService.pairCode.isEmpty {
                         createOrJoinSection
                     } else {
@@ -38,37 +44,11 @@ struct PairSetupSheet: View {
                 }
             }
             .onAppear {
-                nameInput = syncService.myName
                 joinCodeInput = syncService.pairCode
                 relayInput = syncService.relayBaseURL
             }
         }
         .preferredColorScheme(.dark)
-    }
-
-    private var profileSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("YOUR NICKNAME")
-                .font(.system(size: 11, weight: .heavy, design: .rounded))
-                .tracking(0.6)
-                .foregroundStyle(.white.opacity(0.55))
-
-            TextField("Your nickname (shown on partner's notifications)", text: $nameInput)
-                .textInputAutocapitalization(.words)
-                .disableAutocorrection(true)
-                .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(.white.opacity(0.08))
-                )
-                .onSubmit {
-                    commitProfileFields()
-                }
-
-            Text("When connected, \(syncService.myPetProfile.name) & your partner's pet appear together on both phones' Dynamic Islands!")
-                .font(.system(size: 12, design: .rounded))
-                .foregroundStyle(.white.opacity(0.5))
-        }
     }
 
     private var createOrJoinSection: some View {
@@ -116,7 +96,7 @@ struct PairSetupSheet: View {
             Divider().background(Color.white.opacity(0.12))
 
             VStack(alignment: .leading, spacing: 10) {
-                Text("OR JOIN PARTNER'S CODE")
+                Text("OR JOIN AN EXISTING CODE")
                     .font(.system(size: 11, weight: .heavy, design: .rounded))
                     .tracking(0.6)
                     .foregroundStyle(.white.opacity(0.55))
@@ -199,7 +179,7 @@ struct PairSetupSheet: View {
                     }
 
                     ShareLink(
-                        item: "Join my IslandPup Dynamic Island room so both our pets hang out together! Pair code: \(syncService.pairCode)"
+                        item: "Join \(syncService.myPetProfile.name)'s IslandPup Dynamic Island room so both pets hang out together! Pair code: \(syncService.pairCode)"
                     ) {
                         Label("Share", systemImage: "square.and.arrow.up")
                             .font(.system(size: 14, weight: .semibold, design: .rounded))
@@ -259,10 +239,6 @@ struct PairSetupSheet: View {
     }
 
     private func commitProfileFields() {
-        syncService.myName = nameInput
         syncService.relayBaseURL = relayInput
-        Task {
-            _ = await syncService.broadcastMyPetState(isExplicitUpdate: false)
-        }
     }
 }

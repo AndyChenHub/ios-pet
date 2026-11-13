@@ -191,7 +191,7 @@ struct AddPetSheet: View {
                         .fill(.white.opacity(0.08))
                 )
 
-            Text("Shown on both your Dynamic Island and your connected partner's phone.")
+            Text("Shown on the Dynamic Island on both connected phones.")
                 .font(.system(size: 12, design: .rounded))
                 .foregroundStyle(.white.opacity(0.5))
         }

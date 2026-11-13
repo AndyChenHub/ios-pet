@@ -38,10 +38,10 @@ public final class SharedStorage: @unchecked Sendable {
     }
 
     public var myName: String {
-        get { defaults.string(forKey: Keys.myName) ?? "Me" }
+        get { defaults.string(forKey: Keys.myName) ?? "" }
         set {
             let sanitized = Self.sanitizeDisplayText(newValue, maxLength: 20)
-            defaults.set(sanitized.isEmpty ? "Me" : sanitized, forKey: Keys.myName)
+            defaults.set(sanitized, forKey: Keys.myName)
         }
     }
 

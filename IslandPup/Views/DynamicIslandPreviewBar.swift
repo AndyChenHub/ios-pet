@@ -204,7 +204,7 @@ struct DynamicIslandPreviewBar: View {
                                 .multilineTextAlignment(.center)
                                 .lineLimit(2)
                         } else if let partnerMsg = state.partnerMessage, !partnerMsg.isEmpty {
-                            Text("💬 \(partner.name)'s Message")
+                            Text("💬 \(partner.name)'s message")
                                 .font(.system(size: 10, weight: .heavy, design: .rounded))
                                 .foregroundStyle(partner.themeColor)
                             Text("“\(partnerMsg)”")
@@ -291,7 +291,7 @@ struct DynamicIslandPreviewBar: View {
                             .foregroundStyle(.white.opacity(0.78))
                             .lineLimit(1)
                     } else {
-                        Text("Pair with a partner to bring both dogs onto the Dynamic Island!")
+                        Text("Connect two iPhones to bring both dogs onto the Dynamic Island!")
                             .font(.system(size: 12, weight: .medium, design: .rounded))
                             .foregroundStyle(.white.opacity(0.62))
                             .lineLimit(2)

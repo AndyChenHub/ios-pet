@@ -332,7 +332,7 @@
       </div>
 
       <div id="notifBanner" class="notif-banner">
-        <div id="notifTitle" style="font-size:11px; font-weight:800; color:#8fa4ff; text-transform:uppercase;">🐾 PARTNER NOTIFICATION</div>
+        <div id="notifTitle" style="font-size:11px; font-weight:800; color:#8fa4ff;">🐾 Teddy's message</div>
         <div id="notifBody" style="font-size:13px; font-weight:700; margin-top:3px;"></div>
       </div>
 
@@ -365,11 +365,10 @@
 
       <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-          <div class="section-label" style="margin:0;">2. Pair with iPhone (v3 AES-256-GCM)</div>
+          <div class="section-label" style="margin:0;">2. Pair Two Phones (v3 AES-256-GCM)</div>
           <span class="status-pill"><span id="connDot" class="dot"></span><span id="connText">Unpaired</span></span>
         </div>
         <div class="pair-row">
-          <input id="myNameInput" type="text" value="Alex" placeholder="Your nickname" style="max-width:125px;" />
           <input id="pairCodeInput" type="text" placeholder="8-char Pair Code" style="text-transform:uppercase; font-family:monospace; font-weight:700;" />
           <button class="btn secondary" onclick="generateCode()">New Code</button>
           <button class="btn" onclick="connectPair()">Link</button>
@@ -380,9 +379,9 @@
       </div>
 
       <div class="card">
-        <div class="section-label">3. Send Partner Message (Pushes Notification) & Silent Pet Actions</div>
+        <div class="section-label">3. Send Message (Pushes Notification) & Silent Pet Actions</div>
         <div class="pair-row">
-          <input id="noteInput" type="text" placeholder="Message for partner's notification (e.g. Goodnight! 🌙)" onkeydown="if(event.key==='Enter')sendPartnerNote()" />
+          <input id="noteInput" type="text" placeholder="Send a message (e.g. Goodnight! 🌙)" onkeydown="if(event.key==='Enter')sendPartnerNote()" />
           <button class="btn" onclick="sendPartnerNote()">Send</button>
         </div>
         <div id="actionsGrid" class="actions-grid"></div>
@@ -509,7 +508,7 @@
       ACTIONS.forEach(a => {
         const btn = document.createElement("button");
         btn.className = "act-btn" + (myAction === a.key ? " active" : "");
-        btn.innerHTML = `<span>${a.emoji} ${a.title}</span><span style="font-size:11px;color:var(--muted);">${pairCode ? "Sync Both" : "My Pet"}</span>`;
+        btn.innerHTML = `<span>${a.emoji} ${a.title}</span><span style="font-size:11px;color:var(--muted);">${pairCode ? "Silent Sync" : myPetName}</span>`;
         btn.onclick = () => triggerMyAction(a.key);
         grid.appendChild(btn);
       });
@@ -566,7 +565,7 @@
       const notif = document.getElementById("notifBanner");
       if (hasTwo && partnerMessage) {
         notif.style.display = "block";
-        document.getElementById("notifTitle").textContent = `🐾 ${partnerPet.name} (${partnerOwner || "Partner"})`;
+        document.getElementById("notifTitle").textContent = `🐾 ${partnerPet.name}'s message`;
         document.getElementById("notifBody").textContent = `“${partnerMessage}”`;
       } else {
         notif.style.display = "none";
@@ -655,7 +654,7 @@
       const payload = {
         kind: "pet_state",
         senderDeviceId: deviceId,
-        senderOwnerName: sanitizeText(document.getElementById("myNameInput").value, 20) || "Web",
+        senderOwnerName: "",
         petSnapshot: {
           id: "web-pet",
           name: myPetName,
@@ -692,16 +691,15 @@
       if (wire.sentAt < lastAppliedSentAt) return;
       const wasUnlinked = !partnerPet;
       lastAppliedSentAt = wire.sentAt;
-      partnerOwner = sanitizeText(wire.senderOwnerName, 20) || "Partner";
       const snap = wire.petSnapshot || {};
       partnerPet = {
-        name: sanitizeText(snap.name, 18) || "Partner Pup",
+        name: sanitizeText(snap.name, 18) || "Teddy",
         builtInCharacter: snap.builtInCharacter === "teddy" ? "teddy" : "alfie",
         action: snap.action || "idle"
       };
       partnerMessage = wire.message ? sanitizeText(wire.message, 72) : null;
       document.getElementById("partnerStatusLine").textContent =
-        `Connected with ${partnerPet.name} (${partnerOwner}) — both dogs are now on the Dynamic Island!`;
+        `Connected with ${partnerPet.name} — both dogs are now on the Dynamic Island!`;
       updateUI();
       if (wasUnlinked) broadcastMyState(false);
     }

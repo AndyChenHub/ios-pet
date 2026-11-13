@@ -228,7 +228,7 @@ struct ContentView: View {
     private var myPetRosterSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("MY PET (SELECT, RENAME OR IMPORT)")
+                Text("\(syncService.myPetProfile.name.uppercased()) • SELECT OR IMPORT PET")
                     .font(.system(size: 11, weight: .heavy, design: .rounded))
                     .tracking(0.7)
                     .foregroundStyle(.white.opacity(0.55))
@@ -430,8 +430,8 @@ struct ContentView: View {
                         .foregroundStyle(partnerPet.themeColor)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("\(partnerPet.name.uppercased())'S MESSAGE")
-                            .font(.system(size: 10, weight: .heavy, design: .rounded))
+                        Text("\(partnerPet.name)'s message")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
                             .foregroundStyle(partnerPet.themeColor)
                         Text("“\(partnerMsg)”")
                             .font(.system(size: 14, weight: .bold, design: .rounded))
@@ -467,15 +467,12 @@ struct ContentView: View {
     private var pairingHeadline: String {
         switch syncService.connectionStatus {
         case .unpaired:
-            return "Connect with Partner's iPhone"
+            return "Connect Two iPhones"
         case .connecting:
             return "Connecting Room \(syncService.pairCode)…"
         case .listening:
             return "Room \(syncService.pairCode) Ready"
         case .partnerLinked(let petName):
-            if let owner = syncService.partnerOwnerName, !owner.isEmpty {
-                return "\(petName) (\(owner)) is Here!"
-            }
             return "\(petName) is Connected!"
         case .error(let msg):
             return msg
@@ -487,26 +484,46 @@ struct ContentView: View {
         case .unpaired:
             return "When connected, both dogs live together on the Dynamic Island & occasionally play together!"
         case .connecting, .listening:
-            return "Enter code \(syncService.pairCode) on your partner's iPhone so both dogs appear on the Island."
+            return "Enter code \(syncService.pairCode) on the second iPhone so both pets appear on the Island."
         case .partnerLinked(let petName):
             if let act = syncService.partnerPet?.action {
                 return "\(petName) \(act.statusPhrase) \(act.emoji) alongside \(syncService.myPetProfile.name)"
             }
-            return "Both dogs are sharing the Dynamic Island!"
+            return "\(syncService.myPetProfile.name) & \(petName) are sharing the Dynamic Island!"
         case .error:
             return "Tap Manage to verify network or pair code."
         }
     }
 
-    // MARK: - My Pet's Message & Action Deck
+    // MARK: - Pet Message & Action Deck
+
+    private var messageSectionHeader: String {
+        if syncService.pairCode.isEmpty {
+            return "\(syncService.myPetProfile.name.uppercased())'S MESSAGE"
+        }
+        if let connectedPet = syncService.partnerPet {
+            return "SEND \(syncService.myPetProfile.name.uppercased())'S MESSAGE TO \(connectedPet.name.uppercased())"
+        }
+        return "SEND \(syncService.myPetProfile.name.uppercased())'S MESSAGE (PUSHES NOTIFICATION)"
+    }
+
+    private var messagePlaceholder: String {
+        if syncService.pairCode.isEmpty {
+            return "Write a note for \(syncService.myPetProfile.name)…"
+        }
+        if let connectedPet = syncService.partnerPet {
+            return "Message from \(syncService.myPetProfile.name) to \(connectedPet.name)…"
+        }
+        return "Send a message from \(syncService.myPetProfile.name)…"
+    }
 
     private var myPetActionDeckSection: some View {
         let canSendMessage = !messageInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
         return VStack(alignment: .leading, spacing: 16) {
-            // 1. Send Message Section (Pushes Notification to Partner)
+            // 1. Send Message Section (Pushes Notification)
             VStack(alignment: .leading, spacing: 8) {
-                Text(syncService.pairCode.isEmpty ? "STATUS NOTE" : "SEND PARTNER MESSAGE (PUSHES NOTIFICATION)")
+                Text(messageSectionHeader)
                     .font(.system(size: 11, weight: .heavy, design: .rounded))
                     .tracking(0.7)
                     .foregroundStyle(.white.opacity(0.55))
@@ -516,12 +533,7 @@ struct ContentView: View {
                         .font(.system(size: 13))
                         .foregroundStyle(.white.opacity(0.5))
 
-                    TextField(
-                        syncService.pairCode.isEmpty
-                            ? "Write a status note for \(syncService.myPetProfile.name)…"
-                            : "Send a message to notify your partner…",
-                        text: $messageInput
-                    )
+                    TextField(messagePlaceholder, text: $messageInput)
                     .font(.system(size: 13, design: .rounded))
                     .foregroundStyle(.white)
                     .submitLabel(.send)
@@ -645,9 +657,10 @@ struct ContentView: View {
                                         .foregroundStyle(.white)
                                         .lineLimit(1)
                                 }
-                                Text(syncService.pairCode.isEmpty ? "Update My Island" : "Silent Sync")
+                                Text(syncService.pairCode.isEmpty ? "\(syncService.myPetProfile.name)" : "Silent Sync")
                                     .font(.system(size: 11, weight: .medium, design: .rounded))
                                     .foregroundStyle(.white.opacity(0.52))
+                                    .lineLimit(1)
                             }
 
                             Spacer(minLength: 0)
