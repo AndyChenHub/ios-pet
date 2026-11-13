@@ -20,7 +20,7 @@ public struct TriggerIslandPetActionIntent: LiveActivityIntent {
     }
 
     public func perform() async throws -> some IntentResult {
-        if let action = PetAction(rawValue: actionRaw) {
+        if let action = PetAction.decodeKnown(from: actionRaw) {
             await PairSyncService.shared.handleDynamicIslandActionTap(action)
         }
         return .result()

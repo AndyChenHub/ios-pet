@@ -14,37 +14,74 @@ struct IslandPupLiveActivity: Widget {
             let myDisplayPet = state.displayMyPet
             let partnerDisplayPet = state.displayPartnerPet
             let interaction = state.activeInteraction
+            let showCombinedDuo = (interaction != nil) && state.canRenderCombinedDuoArtwork
+            let islandTint: Color = {
+                guard let interaction else { return myDisplayPet.themeColor }
+                return interaction.kind.isUltraRareLongSkit
+                    ? Color(red: 1.0, green: 0.80, blue: 0.28)
+                    : Color.pink
+            }()
 
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    VStack(spacing: 3) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(.black)
-                                .frame(width: 52, height: 52)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .strokeBorder(myDisplayPet.themeColor.opacity(0.6), lineWidth: 1.5)
-                                )
-
-                            AnimatedPetSpriteView(
-                                pet: myDisplayPet,
-                                size: 46,
-                                driver: .widgetTimerGate(anchor: state.anchorDate),
-                                showSleepBadge: true
-                            )
+                    if showCombinedDuo {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(myDisplayPet.themeColor)
+                                .frame(width: 6, height: 6)
+                            Text(myDisplayPet.name)
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.92))
+                                .lineLimit(1)
                         }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(.white.opacity(0.12)))
+                        .padding(.leading, 2)
+                    } else {
+                        VStack(spacing: 3) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(.black)
+                                    .frame(width: 52, height: 52)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                            .strokeBorder(myDisplayPet.themeColor.opacity(0.6), lineWidth: 1.5)
+                                    )
 
-                        Text("\(myDisplayPet.name) \(myDisplayPet.action.emoji)")
-                            .font(.system(size: 10, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.9))
-                            .lineLimit(1)
+                                AnimatedPetSpriteView(
+                                    pet: myDisplayPet,
+                                    size: 46,
+                                    driver: .widgetTimerGate(anchor: state.anchorDate),
+                                    showSleepBadge: true
+                                )
+                            }
+
+                            Text("\(myDisplayPet.name) \(myDisplayPet.action.emoji)")
+                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.9))
+                                .lineLimit(1)
+                        }
+                        .padding(.leading, 2)
                     }
-                    .padding(.leading, 2)
                 }
 
                 DynamicIslandExpandedRegion(.trailing) {
-                    if let partner = partnerDisplayPet, state.hasTwoDogs {
+                    if showCombinedDuo, let partner = partnerDisplayPet {
+                        HStack(spacing: 4) {
+                            Text(partner.name)
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.92))
+                                .lineLimit(1)
+                            Circle()
+                                .fill(partner.themeColor)
+                                .frame(width: 6, height: 6)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(.white.opacity(0.12)))
+                        .padding(.trailing, 2)
+                    } else if let partner = partnerDisplayPet, state.hasTwoDogs {
                         VStack(spacing: 3) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -78,6 +115,7 @@ struct IslandPupLiveActivity: Widget {
                                 Text(myDisplayPet.action.title)
                                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                                     .foregroundStyle(.white)
+                                    .lineLimit(1)
                             }
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
@@ -90,7 +128,13 @@ struct IslandPupLiveActivity: Widget {
                 }
 
                 DynamicIslandExpandedRegion(.center) {
-                    expandedCenterView(state: state, myPet: myDisplayPet, partnerPet: partnerDisplayPet, interaction: interaction)
+                    expandedCenterView(
+                        state: state,
+                        myPet: myDisplayPet,
+                        partnerPet: partnerDisplayPet,
+                        interaction: interaction,
+                        showCombinedDuo: showCombinedDuo
+                    )
                 }
 
                 DynamicIslandExpandedRegion(.bottom) {
@@ -118,7 +162,7 @@ struct IslandPupLiveActivity: Widget {
                         }
 
                         HStack(spacing: 6) {
-                            Text("SET \(state.myPet.name.uppercased())'S ACTION")
+                            Text("SET \(state.myPet.name.uppercased())'S STATUS")
                                 .font(.system(size: 9, weight: .heavy, design: .rounded))
                                 .tracking(0.5)
                                 .foregroundStyle(.white.opacity(0.52))
@@ -143,17 +187,18 @@ struct IslandPupLiveActivity: Widget {
                             }
                         }
 
-                        HStack(spacing: 6) {
+                        HStack(spacing: 5) {
                             ForEach(PetAction.quickIslandActions) { item in
                                 let isSelected = state.myPet.action == item
                                 Button(intent: TriggerIslandPetActionIntent(action: item)) {
-                                    HStack(spacing: 4) {
+                                    HStack(spacing: 3) {
                                         Text(item.emoji)
-                                            .font(.system(size: 12))
+                                            .font(.system(size: 11))
                                         Text(item.shortLabel)
-                                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                            .font(.system(size: 10.5, weight: .bold, design: .rounded))
                                             .foregroundStyle(.white)
                                             .lineLimit(1)
+                                            .minimumScaleFactor(0.8)
                                     }
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 6)
@@ -208,7 +253,7 @@ struct IslandPupLiveActivity: Widget {
                     driver: .widgetStatic
                 )
             }
-            .keylineTint(interaction != nil ? Color.pink : myDisplayPet.themeColor)
+            .keylineTint(islandTint)
         }
     }
 
@@ -217,22 +262,74 @@ struct IslandPupLiveActivity: Widget {
         state: PetActivityAttributes.ContentState,
         myPet: IslandPetSnapshot,
         partnerPet: IslandPetSnapshot?,
-        interaction: RarePetInteraction?
+        interaction: RarePetInteraction?,
+        showCombinedDuo: Bool
     ) -> some View {
         if let interaction, let partnerPet {
-            VStack(spacing: 2) {
-                Text("\(interaction.kind.badgeEmoji) \(interaction.kind.title)")
-                    .font(.system(size: 12, weight: .heavy, design: .rounded))
-                    .foregroundStyle(Color(red: 1.0, green: 0.78, blue: 0.88))
-                    .lineLimit(1)
+            let isMythicSkit = interaction.kind.isUltraRareLongSkit
+            let strokeColor = isMythicSkit ? Color(red: 1.0, green: 0.80, blue: 0.28) : Color.pink
+            let badgeColor = isMythicSkit
+                ? Color(red: 1.0, green: 0.88, blue: 0.50)
+                : Color(red: 1.0, green: 0.75, blue: 0.88)
 
-                Text(interaction.kind.descriptionText(myPetName: myPet.name, partnerPetName: partnerPet.name))
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.82))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
+            if showCombinedDuo {
+                HStack(spacing: 10) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(.black)
+                            .frame(width: 80, height: 58)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .strokeBorder(strokeColor.opacity(0.72), lineWidth: 1.5)
+                            )
+
+                        AnimatedDuoSpriteView(
+                            kind: interaction.kind,
+                            height: 52,
+                            driver: .widgetTimerGate(anchor: state.anchorDate)
+                        )
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(interaction.effectiveTriggerBadge)
+                            .font(.system(size: 9, weight: .heavy, design: .rounded))
+                            .foregroundStyle(badgeColor)
+                            .lineLimit(1)
+
+                        Text("\(interaction.kind.badgeEmoji) \(interaction.kind.title)")
+                            .font(.system(size: 12, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+
+                        Text(interaction.kind.descriptionText(myPetName: myPet.name, partnerPetName: partnerPet.name))
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.82))
+                            .lineLimit(2)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity)
+            } else {
+                VStack(spacing: 2) {
+                    Text(interaction.effectiveTriggerBadge)
+                        .font(.system(size: 9, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Color(red: 1.0, green: 0.78, blue: 0.88))
+                        .lineLimit(1)
+
+                    Text("\(interaction.kind.badgeEmoji) \(interaction.kind.title)")
+                        .font(.system(size: 11.5, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+
+                    Text(interaction.kind.descriptionText(myPetName: myPet.name, partnerPetName: partnerPet.name))
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.82))
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                }
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity)
         } else if let partnerPet, state.hasTwoDogs {
             VStack(spacing: 3) {
                 if let partnerMsg = state.partnerMessage, !partnerMsg.isEmpty {
@@ -262,8 +359,15 @@ struct IslandPupLiveActivity: Widget {
             .frame(maxWidth: .infinity)
         } else {
             VStack(alignment: .leading, spacing: 2) {
+                if let quirk = state.activeSoloQuirk {
+                    Text(quirk.triggerBadge)
+                        .font(.system(size: 9, weight: .heavy, design: .rounded))
+                        .foregroundStyle(myPet.action.accentColor)
+                        .lineLimit(1)
+                }
+
                 Text("\(myPet.name) \(myPet.action.statusPhrase)")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .font(.system(size: 13.5, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .lineLimit(1)
 
@@ -286,7 +390,7 @@ struct IslandPupLiveActivity: Widget {
 
 private func shouldFlipRightDog(action: PetAction) -> Bool {
     switch action {
-    case .runLeft, .runRight:
+    case .confused, .sideEye:
         return false
     default:
         return true
@@ -338,16 +442,18 @@ private struct LockScreenPetBannerView: View {
                 soloStageHeader(myPet: myPet)
             }
 
-            HStack(spacing: 6) {
+            HStack(spacing: 5) {
                 ForEach(PetAction.quickIslandActions) { item in
                     let isSelected = state.myPet.action == item
                     Button(intent: TriggerIslandPetActionIntent(action: item)) {
-                        HStack(spacing: 4) {
+                        HStack(spacing: 3) {
                             Text(item.emoji)
-                                .font(.system(size: 12))
+                                .font(.system(size: 11))
                             Text(item.shortLabel)
-                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                .font(.system(size: 10.5, weight: .bold, design: .rounded))
                                 .foregroundStyle(.white)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
@@ -362,9 +468,9 @@ private struct LockScreenPetBannerView: View {
                 if state.isPaired {
                     Button(intent: SyncPartnerPetIntent()) {
                         Image(systemName: "arrow.triangle.2.circlepath")
-                            .font(.system(size: 12, weight: .bold))
+                            .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(.white)
-                            .padding(.horizontal, 10)
+                            .padding(.horizontal, 9)
                             .padding(.vertical, 7)
                             .background(
                                 RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -385,40 +491,71 @@ private struct LockScreenPetBannerView: View {
         interaction: RarePetInteraction?
     ) -> some View {
         if let interaction {
-            HStack(spacing: 10) {
-                HStack(spacing: 2) {
-                    AnimatedPetSpriteView(
-                        pet: myPet,
-                        size: 50,
-                        driver: .widgetTimerGate(anchor: state.anchorDate)
-                    )
-                    Text(interaction.kind.centerIcon)
-                        .font(.system(size: 16))
-                    AnimatedPetSpriteView(
-                        pet: partnerPet,
-                        size: 50,
-                        driver: .widgetTimerGate(anchor: state.anchorDate),
-                        flipHorizontally: true
+            let isMythicSkit = interaction.kind.isUltraRareLongSkit
+            let strokeColor = isMythicSkit ? Color(red: 1.0, green: 0.80, blue: 0.28) : Color.pink
+            let badgeColor = isMythicSkit
+                ? Color(red: 1.0, green: 0.88, blue: 0.50)
+                : Color(red: 1.0, green: 0.72, blue: 0.86)
+
+            HStack(spacing: 11) {
+                if state.canRenderCombinedDuoArtwork {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(.black)
+                            .frame(width: 92, height: 66)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .strokeBorder(strokeColor.opacity(0.72), lineWidth: 1.5)
+                            )
+
+                        AnimatedDuoSpriteView(
+                            kind: interaction.kind,
+                            height: 60,
+                            driver: .widgetTimerGate(anchor: state.anchorDate)
+                        )
+                    }
+                } else {
+                    HStack(spacing: 2) {
+                        AnimatedPetSpriteView(
+                            pet: myPet,
+                            size: 48,
+                            driver: .widgetTimerGate(anchor: state.anchorDate)
+                        )
+                        Text(interaction.kind.centerIcon)
+                            .font(.system(size: 15))
+                        AnimatedPetSpriteView(
+                            pet: partnerPet,
+                            size: 48,
+                            driver: .widgetTimerGate(anchor: state.anchorDate),
+                            flipHorizontally: shouldFlipRightDog(action: partnerPet.action)
+                        )
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(.black)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .strokeBorder(strokeColor.opacity(0.72), lineWidth: 1.5)
+                            )
                     )
                 }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 4)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(.black)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .strokeBorder(Color.pink.opacity(0.65), lineWidth: 1.5)
-                        )
-                )
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("✨ RARE INTERACTION")
+                    Text(interaction.effectiveTriggerBadge)
                         .font(.system(size: 10, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Color(red: 1.0, green: 0.72, blue: 0.86))
-                    Text(interaction.kind.descriptionText(myPetName: myPet.name, partnerPetName: partnerPet.name))
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundStyle(badgeColor)
+                        .lineLimit(1)
+
+                    Text("\(interaction.kind.badgeEmoji) \(interaction.kind.title)")
+                        .font(.system(size: 13, weight: .heavy, design: .rounded))
                         .foregroundStyle(.white)
+                        .lineLimit(1)
+
+                    Text(interaction.kind.descriptionText(myPetName: myPet.name, partnerPetName: partnerPet.name))
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.88))
                         .lineLimit(2)
                 }
 
@@ -491,9 +628,16 @@ private struct LockScreenPetBannerView: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
+                if let quirk = state.activeSoloQuirk {
+                    Text(quirk.triggerBadge)
+                        .font(.system(size: 10, weight: .heavy, design: .rounded))
+                        .foregroundStyle(myPet.action.accentColor)
+                        .lineLimit(1)
+                }
+
                 HStack(spacing: 6) {
                     Text("\(myPet.name) \(myPet.action.statusPhrase)")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .font(.system(size: 14.5, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                         .lineLimit(1)
 

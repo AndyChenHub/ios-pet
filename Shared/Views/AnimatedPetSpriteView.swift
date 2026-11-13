@@ -1,14 +1,119 @@
 import CoreText
 import Foundation
+import ImageIO
 import SwiftUI
 import UIKit
 
 private enum PetFontRegistrar {
     static let registerOnce: Void = {
-        if let url = Bundle.main.url(forResource: "PetTimerGate-Regular", withExtension: "ttf") {
-            CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+        for fontFile in ["PetTimerGate-Regular", "PetTimerGate6s-Regular"] {
+            if let url = Bundle.main.url(forResource: fontFile, withExtension: "ttf") {
+                CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+            }
         }
     }()
+}
+
+private final class DecodedSkitSequence: NSObject {
+    let frames: [UIImage]
+    let cumulativeEnds: [TimeInterval]
+    let totalDuration: TimeInterval
+
+    init(frames: [UIImage], cumulativeEnds: [TimeInterval], totalDuration: TimeInterval) {
+        self.frames = frames
+        self.cumulativeEnds = cumulativeEnds
+        self.totalDuration = max(0.085, totalDuration)
+    }
+
+    func frame(at referenceTime: TimeInterval) -> UIImage {
+        let wrapped = referenceTime.truncatingRemainder(dividingBy: totalDuration)
+        let local = wrapped >= 0 ? wrapped : (wrapped + totalDuration)
+
+        var low = 0
+        var high = cumulativeEnds.count - 1
+        while low < high {
+            let mid = (low + high) / 2
+            if local < cumulativeEnds[mid] {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        return frames[min(max(0, low), frames.count - 1)]
+    }
+}
+
+private final class LongSkitPlaybackCache: @unchecked Sendable {
+    static let shared = LongSkitPlaybackCache()
+
+    private let cache: NSCache<NSString, DecodedSkitSequence> = {
+        let c = NSCache<NSString, DecodedSkitSequence>()
+        c.countLimit = 2
+        return c
+    }()
+    private let lock = NSLock()
+
+    func skit(named datasetName: String) -> DecodedSkitSequence? {
+        let key = datasetName as NSString
+        lock.lock()
+        if let hit = cache.object(forKey: key) {
+            lock.unlock()
+            return hit
+        }
+        lock.unlock()
+
+        guard let asset = NSDataAsset(name: datasetName),
+              let source = CGImageSourceCreateWithData(asset.data as CFData, nil) else {
+            return nil
+        }
+
+        let count = CGImageSourceGetCount(source)
+        guard count >= 2 else { return nil }
+
+        var images: [UIImage] = []
+        var ends: [TimeInterval] = []
+        images.reserveCapacity(count)
+        ends.reserveCapacity(count)
+
+        var acc: TimeInterval = 0
+        for index in 0..<count {
+            guard let cgImg = CGImageSourceCreateImageAtIndex(source, index, nil) else { continue }
+            let delay = Self.frameDelay(from: source, at: index)
+            acc += delay
+            images.append(UIImage(cgImage: cgImg))
+            ends.append(acc)
+        }
+
+        guard !images.isEmpty else { return nil }
+        let sequence = DecodedSkitSequence(frames: images, cumulativeEnds: ends, totalDuration: acc)
+        lock.lock()
+        cache.setObject(sequence, forKey: key)
+        lock.unlock()
+        return sequence
+    }
+
+    private static func frameDelay(from source: CGImageSource, at index: Int) -> TimeInterval {
+        guard let props = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any] else {
+            return 0.085
+        }
+        if let webpDict = props[kCGImagePropertyWebPDictionary] as? [CFString: Any] {
+            if let unclamped = webpDict[kCGImagePropertyWebPUnclampedDelayTime] as? Double, unclamped >= 0.02 {
+                return unclamped
+            }
+            if let clamped = webpDict[kCGImagePropertyWebPDelayTime] as? Double, clamped >= 0.02 {
+                return clamped
+            }
+        }
+        if let gifDict = props[kCGImagePropertyGIFDictionary] as? [CFString: Any] {
+            if let unclamped = gifDict[kCGImagePropertyGIFUnclampedDelayTime] as? Double, unclamped >= 0.02 {
+                return unclamped
+            }
+            if let clamped = gifDict[kCGImagePropertyGIFDelayTime] as? Double, clamped >= 0.02 {
+                return clamped
+            }
+        }
+        return 0.085
+    }
 }
 
 /// Drives frame-by-frame animation for built-in pets (Alfie & Teddy) and user-imported custom
@@ -294,20 +399,221 @@ public struct AnimatedPetSpriteView: View {
     }
 }
 
+/// Renders combined two-dog interaction scenes (`duo_<key>_0..3`) and ultra-rare long story skits
+/// across Dynamic Island / Lock Screen (2s or 6s Painter's Algorithm) and in-app (`TimelineView`).
+public struct AnimatedDuoSpriteView: View {
+    public let kind: RareInteractionKind
+    public let width: CGFloat
+    public let height: CGFloat
+    public let driver: AnimatedPetSpriteView.PlaybackDriver
+
+    private let frameNames: [String]
+
+    @Environment(\.isLuminanceReduced) private var isLuminanceReduced
+    @Environment(\.scenePhase) private var scenePhase
+
+    public init(
+        kind: RareInteractionKind,
+        height: CGFloat,
+        driver: AnimatedPetSpriteView.PlaybackDriver
+    ) {
+        if case .widgetTimerGate = driver {
+            _ = PetFontRegistrar.registerOnce
+        }
+        self.kind = kind
+        self.height = height
+        self.width = (height * (200.0 / 144.0)).rounded()
+        self.driver = driver
+        self.frameNames = kind.frameAssetNames
+    }
+
+    public var body: some View {
+        Group {
+            switch driver {
+            case .widgetStatic:
+                renderDuoFrame(frameNames[0])
+
+            case .widgetTimerGate(let anchor):
+                if isLuminanceReduced || frameNames.count < 2 {
+                    renderDuoFrame(frameNames[0])
+                } else {
+                    let sampled = ProcessInfo.processInfo.isLowPowerModeEnabled
+                        ? [frameNames[0], frameNames[frameNames.count / 2]]
+                        : frameNames
+                    let cycle: Double = kind.isUltraRareLongSkit ? 6.0 : 2.0
+                    let fontName = kind.isUltraRareLongSkit ? "PetTimerGate6s-Regular" : "PetTimerGate-Regular"
+                    duoWidgetTwoStackLoop(
+                        frames: sampled,
+                        anchor: anchor,
+                        cycleSeconds: cycle,
+                        fontName: fontName
+                    )
+                }
+
+            case .liveTimeline:
+                if isLuminanceReduced || scenePhase != .active || frameNames.count < 2 {
+                    renderDuoFrame(frameNames[0])
+                } else if let datasetName = kind.longSkitDatasetName,
+                          let decodedSkit = LongSkitPlaybackCache.shared.skit(named: datasetName) {
+                    let tickInterval = ProcessInfo.processInfo.isLowPowerModeEnabled ? 0.25 : 0.085
+                    TimelineView(.periodic(from: .now, by: tickInterval)) { context in
+                        let img = decodedSkit.frame(at: context.date.timeIntervalSinceReferenceDate)
+                        Image(uiImage: img)
+                            .renderingMode(.original)
+                            .interpolation(.high)
+                            .resizable()
+                            .antialiased(true)
+                            .scaledToFit()
+                            .frame(width: width, height: height)
+                    }
+                } else {
+                    let effectiveFPS = ProcessInfo.processInfo.isLowPowerModeEnabled
+                        ? min(kind.inAppFPS, 3.0)
+                        : kind.inAppFPS
+                    TimelineView(.periodic(from: .now, by: 1.0 / max(effectiveFPS, 1.0))) { context in
+                        let rawTick = Int(floor(context.date.timeIntervalSinceReferenceDate * effectiveFPS))
+                        let idx = ((rawTick % frameNames.count) + frameNames.count) % frameNames.count
+                        renderDuoFrame(frameNames[idx])
+                    }
+                }
+            }
+        }
+        .frame(width: width, height: height)
+    }
+
+    @ViewBuilder
+    private func duoWidgetTwoStackLoop(
+        frames: [String],
+        anchor: Date,
+        cycleSeconds: Double,
+        fontName: String
+    ) -> some View {
+        let count = max(2, frames.count - (frames.count % 2))
+        let half = max(1, count / 2)
+        let frameDuration = cycleSeconds / Double(count)
+        let halfCycle = cycleSeconds / 2.0
+
+        ZStack {
+            ZStack {
+                opaqueDuoFrame(frames[0])
+
+                if half > 1 {
+                    ForEach(1..<half, id: \.self) { i in
+                        opaqueDuoFrame(frames[i])
+                            .mask(
+                                TimerBlinkMask(
+                                    anchorDate: anchor,
+                                    deltaSeconds: Double(i) * frameDuration,
+                                    width: width,
+                                    height: height,
+                                    fontName: fontName
+                                )
+                            )
+                    }
+                }
+            }
+
+            if count > half {
+                ZStack {
+                    opaqueDuoFrame(frames[half])
+
+                    if count > half + 1 {
+                        ForEach((half + 1)..<count, id: \.self) { i in
+                            opaqueDuoFrame(frames[i])
+                                .mask(
+                                    TimerBlinkMask(
+                                        anchorDate: anchor,
+                                        deltaSeconds: Double(i) * frameDuration,
+                                        width: width,
+                                        height: height,
+                                        fontName: fontName
+                                    )
+                                )
+                        }
+                    }
+                }
+                .mask(
+                    TimerBlinkMask(
+                        anchorDate: anchor,
+                        deltaSeconds: halfCycle,
+                        width: width,
+                        height: height,
+                        fontName: fontName
+                    )
+                )
+            }
+        }
+        .frame(width: width, height: height)
+        .clipped()
+    }
+
+    @ViewBuilder
+    private func opaqueDuoFrame(_ assetName: String) -> some View {
+        ZStack {
+            Color.black
+            renderDuoFrame(assetName)
+        }
+        .frame(width: width, height: height)
+    }
+
+    @ViewBuilder
+    private func renderDuoFrame(_ assetName: String) -> some View {
+        Image(assetName)
+            .renderingMode(.original)
+            .interpolation(.high)
+            .resizable()
+            .antialiased(true)
+            .scaledToFit()
+            .frame(width: width, height: height)
+    }
+}
+
 private struct TimerBlinkMask: View {
     let anchorDate: Date
     let deltaSeconds: TimeInterval
-    let size: CGFloat
+    let width: CGFloat
+    let height: CGFloat
+    let fontName: String
+
+    init(
+        anchorDate: Date,
+        deltaSeconds: TimeInterval,
+        size: CGFloat,
+        fontName: String = "PetTimerGate-Regular"
+    ) {
+        self.anchorDate = anchorDate
+        self.deltaSeconds = deltaSeconds
+        self.width = size
+        self.height = size
+        self.fontName = fontName
+    }
+
+    init(
+        anchorDate: Date,
+        deltaSeconds: TimeInterval,
+        width: CGFloat,
+        height: CGFloat,
+        fontName: String = "PetTimerGate-Regular"
+    ) {
+        self.anchorDate = anchorDate
+        self.deltaSeconds = deltaSeconds
+        self.width = width
+        self.height = height
+        self.fontName = fontName
+    }
 
     var body: some View {
+        let gateDim = max(width, height)
         Text(anchorDate.addingTimeInterval(deltaSeconds), style: .timer)
-            .font(.custom("PetTimerGate-Regular", fixedSize: size))
+            .font(.custom(fontName, fixedSize: gateDim))
             .foregroundStyle(.white)
             .lineLimit(1)
-            .frame(width: size * 9, height: size, alignment: .trailing)
+            .frame(width: gateDim * 9, height: gateDim, alignment: .trailing)
             .multilineTextAlignment(.trailing)
-            .offset(x: -size * 4)
-            .frame(width: size, height: size)
+            .offset(x: -gateDim * 4)
+            .frame(width: gateDim, height: gateDim)
+            .clipped()
+            .frame(width: width, height: height)
             .clipped()
             .environment(\.locale, Locale(identifier: "en_US_POSIX"))
             .environment(\.layoutDirection, .leftToRight)

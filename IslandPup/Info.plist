@@ -33,6 +33,7 @@
 	<key>UIAppFonts</key>
 	<array>
 		<string>PetTimerGate-Regular.ttf</string>
+		<string>PetTimerGate6s-Regular.ttf</string>
 	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>

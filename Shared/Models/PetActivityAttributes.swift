@@ -2,26 +2,40 @@ import ActivityKit
 import Foundation
 
 /// ActivityKit attributes for the Dynamic Island & Lock Screen pet Live Activity.
-/// Supports solo mode (1 dog) and connected mode (both dogs on the Dynamic Island,
-/// partner message display in Lock Screen / Expanded notifications, and rare 2-dog interactions).
+/// Supports solo mode (1 dog + special solo quirks) and connected mode (both dogs on the Dynamic Island,
+/// message display, and 20 combined two-dog interactions).
 public struct PetActivityAttributes: ActivityAttributes, Sendable {
     public struct ContentState: Codable, Hashable, Sendable {
-        /// This iPhone user's selected pet, custom name, and active action.
+        /// This iPhone user's selected pet, custom name, and chosen Emotion/Task.
         public var myPet: IslandPetSnapshot
         /// Optional status note set by this iPhone's owner.
         public var myMessage: String?
-        /// Whether this phone is currently connected to a partner room.
+        /// Whether this phone is currently connected to a room.
         public var isPaired: Bool
-        /// The connected partner's pet (when linked), rendered alongside `myPet` on the Dynamic Island.
+        /// The connected pet (when linked), rendered alongside `myPet` on the Dynamic Island.
         public var partnerPet: IslandPetSnapshot?
-        /// Display nickname of the partner.
+        /// Legacy optional nickname field.
         public var partnerOwnerName: String?
-        /// Latest message sent by the partner (shown in notifications & Live Activity banner).
+        /// Latest message sent by the connected pet (shown in notifications & Live Activity banner).
         public var partnerMessage: String?
-        /// Optional spontaneous rare interaction where both dogs interact together.
+        /// Optional combined two-dog interaction scene triggered by status sync, clash, message, or chaos.
         public var rareInteraction: RarePetInteraction?
+        /// Optional temporary solo special quirk (e.g. Snoot Boop, Zoomies, Blep) preserving `myPet.action`.
+        public var soloQuirk: SoloPetQuirk?
         /// Even-second aligned past timestamp anchoring the `PetTimerGate-Regular` mask animation.
         public var anchorTimestamp: TimeInterval
+
+        private enum CodingKeys: String, CodingKey {
+            case myPet
+            case myMessage
+            case isPaired
+            case partnerPet
+            case partnerOwnerName
+            case partnerMessage
+            case rareInteraction
+            case soloQuirk
+            case anchorTimestamp
+        }
 
         public init(
             myPet: IslandPetSnapshot,
@@ -31,6 +45,7 @@ public struct PetActivityAttributes: ActivityAttributes, Sendable {
             partnerOwnerName: String? = nil,
             partnerMessage: String? = nil,
             rareInteraction: RarePetInteraction? = nil,
+            soloQuirk: SoloPetQuirk? = nil,
             anchorTimestamp: TimeInterval? = nil
         ) {
             self.myPet = myPet
@@ -40,24 +55,40 @@ public struct PetActivityAttributes: ActivityAttributes, Sendable {
             self.partnerOwnerName = partnerOwnerName
             self.partnerMessage = partnerMessage
             self.rareInteraction = rareInteraction
+            self.soloQuirk = soloQuirk
             if let anchorTimestamp {
                 self.anchorTimestamp = anchorTimestamp
             } else {
                 let now = Date().timeIntervalSince1970
-                self.anchorTimestamp = floor(now / 2.0) * 2.0 - 60.0
+                self.anchorTimestamp = floor(now / 6.0) * 6.0 - 60.0
             }
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.myPet = try container.decode(IslandPetSnapshot.self, forKey: .myPet)
+            self.myMessage = try? container.decodeIfPresent(String.self, forKey: .myMessage)
+            self.isPaired = (try? container.decode(Bool.self, forKey: .isPaired)) ?? false
+            self.partnerPet = try? container.decodeIfPresent(IslandPetSnapshot.self, forKey: .partnerPet)
+            self.partnerOwnerName = try? container.decodeIfPresent(String.self, forKey: .partnerOwnerName)
+            self.partnerMessage = try? container.decodeIfPresent(String.self, forKey: .partnerMessage)
+            self.rareInteraction = try? container.decodeIfPresent(RarePetInteraction.self, forKey: .rareInteraction)
+            self.soloQuirk = try? container.decodeIfPresent(SoloPetQuirk.self, forKey: .soloQuirk)
+            let now = Date().timeIntervalSince1970
+            self.anchorTimestamp = (try? container.decode(TimeInterval.self, forKey: .anchorTimestamp))
+                ?? (floor(now / 6.0) * 6.0 - 60.0)
         }
 
         public var anchorDate: Date {
             Date(timeIntervalSince1970: anchorTimestamp)
         }
 
-        /// True when paired and we have a partner dog to display beside ours on the Dynamic Island.
+        /// True when paired and we have a connected dog to display beside ours on the Dynamic Island.
         public var hasTwoDogs: Bool {
             isPaired && partnerPet != nil
         }
 
-        /// Returns the rare interaction if both dogs are present and the event hasn't expired.
+        /// Returns the active combined interaction if both dogs are present and the event hasn't expired.
         public var activeInteraction: RarePetInteraction? {
             guard hasTwoDogs, let rareInteraction, rareInteraction.isActive() else {
                 return nil
@@ -65,15 +96,38 @@ public struct PetActivityAttributes: ActivityAttributes, Sendable {
             return rareInteraction
         }
 
-        /// Snapshot of my pet, temporarily adopting the interaction pose during a rare 2-dog moment.
+        /// Returns the active temporary solo quirk when no two-dog interaction is overriding it.
+        public var activeSoloQuirk: SoloPetQuirk? {
+            guard activeInteraction == nil, let soloQuirk, soloQuirk.isActive() else {
+                return nil
+            }
+            return soloQuirk
+        }
+
+        /// True when both connected pets are built-in characters so combined duo sprite scenes apply cleanly.
+        public var canRenderCombinedDuoArtwork: Bool {
+            hasTwoDogs && myPet.builtInCharacter != nil && partnerPet?.builtInCharacter != nil
+        }
+
+        /// Earliest expiry date of any active temporary interaction or quirk for ActivityKit `staleDate`.
+        public var nextExpiryDate: Date? {
+            let candidates = [activeInteraction?.expiresAt, activeSoloQuirk?.expiresAt].compactMap { $0 }
+            guard let earliest = candidates.min() else { return nil }
+            return Date(timeIntervalSince1970: earliest)
+        }
+
+        /// Snapshot of my pet, temporarily adopting an interaction pose or solo quirk when active.
         public var displayMyPet: IslandPetSnapshot {
             if let interaction = activeInteraction {
                 return myPet.withAction(interaction.kind.myDogAction)
             }
+            if let quirk = activeSoloQuirk {
+                return myPet.withAction(quirk.action)
+            }
             return myPet
         }
 
-        /// Snapshot of partner's pet, temporarily adopting the interaction pose during a rare 2-dog moment.
+        /// Snapshot of connected pet, temporarily adopting an interaction pose during a combined moment.
         public var displayPartnerPet: IslandPetSnapshot? {
             guard let partnerPet else { return nil }
             if let interaction = activeInteraction {

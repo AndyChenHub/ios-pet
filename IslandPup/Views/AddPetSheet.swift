@@ -357,6 +357,10 @@ struct AddPetSheet: View {
     private func populateInitialValues() {
         switch mode {
         case .createNew:
+            guard FeatureFlags.enableCustomPetCreation else {
+                dismiss()
+                return
+            }
             petName = ""
             selectedColor = .mintGreen
         case .editExisting(let profile):

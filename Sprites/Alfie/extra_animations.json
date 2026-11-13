@@ -1,0 +1,191 @@
+{
+  "dog": "dog1",
+  "atlasWidth": 1536,
+  "atlasHeight": 3744,
+  "cellWidth": 192,
+  "cellHeight": 208,
+  "columns": 8,
+  "rows": 18,
+  "animations": [
+    {
+      "row": 1,
+      "key": "walk",
+      "label": "Going on Walk",
+      "category": "everyday",
+      "frames": 4,
+      "frameDurationMs": 130,
+      "gifFile": "gifs/01_walk.gif",
+      "webpFile": "webp_stickers/01_walk.webp"
+    },
+    {
+      "row": 2,
+      "key": "working",
+      "label": "Working",
+      "category": "everyday",
+      "frames": 4,
+      "frameDurationMs": 135,
+      "gifFile": "gifs/02_working.gif",
+      "webpFile": "webp_stickers/02_working.webp"
+    },
+    {
+      "row": 3,
+      "key": "sleeping",
+      "label": "Sleeping",
+      "category": "everyday",
+      "frames": 4,
+      "frameDurationMs": 220,
+      "gifFile": "gifs/03_sleeping.gif",
+      "webpFile": "webp_stickers/03_sleeping.webp"
+    },
+    {
+      "row": 4,
+      "key": "eating",
+      "label": "Eating",
+      "category": "everyday",
+      "frames": 4,
+      "frameDurationMs": 135,
+      "gifFile": "gifs/04_eating.gif",
+      "webpFile": "webp_stickers/04_eating.webp"
+    },
+    {
+      "row": 5,
+      "key": "happy",
+      "label": "Happy / Yay",
+      "category": "everyday",
+      "frames": 4,
+      "frameDurationMs": 125,
+      "gifFile": "gifs/05_happy.gif",
+      "webpFile": "webp_stickers/05_happy.webp"
+    },
+    {
+      "row": 6,
+      "key": "sad",
+      "label": "Sad / Crying",
+      "category": "everyday",
+      "frames": 4,
+      "frameDurationMs": 170,
+      "gifFile": "gifs/06_sad.gif",
+      "webpFile": "webp_stickers/06_sad.webp"
+    },
+    {
+      "row": 7,
+      "key": "love",
+      "label": "Love / Hearts",
+      "category": "everyday",
+      "frames": 4,
+      "frameDurationMs": 145,
+      "gifFile": "gifs/07_love.gif",
+      "webpFile": "webp_stickers/07_love.webp"
+    },
+    {
+      "row": 8,
+      "key": "confused",
+      "label": "Confused ???",
+      "category": "everyday",
+      "frames": 4,
+      "frameDurationMs": 175,
+      "gifFile": "gifs/08_confused.gif",
+      "webpFile": "webp_stickers/08_confused.webp"
+    },
+    {
+      "row": 9,
+      "key": "grumpy",
+      "label": "Grumpy / No",
+      "category": "everyday",
+      "frames": 4,
+      "frameDurationMs": 155,
+      "gifFile": "gifs/09_grumpy.gif",
+      "webpFile": "webp_stickers/09_grumpy.webp"
+    },
+    {
+      "row": 10,
+      "key": "celebrate",
+      "label": "Celebrate!",
+      "category": "everyday",
+      "frames": 4,
+      "frameDurationMs": 130,
+      "gifFile": "gifs/10_celebrate.gif",
+      "webpFile": "webp_stickers/10_celebrate.webp"
+    },
+    {
+      "row": 11,
+      "key": "zoomies",
+      "label": "Zoomies!!",
+      "category": "rare",
+      "frames": 6,
+      "frameDurationMs": 90,
+      "gifFile": "gifs/11_zoomies.gif",
+      "webpFile": "webp_stickers/11_zoomies.webp"
+    },
+    {
+      "row": 12,
+      "key": "begging",
+      "label": "Begging",
+      "category": "rare",
+      "frames": 4,
+      "frameDurationMs": 125,
+      "gifFile": "gifs/12_begging.gif",
+      "webpFile": "webp_stickers/12_begging.webp"
+    },
+    {
+      "row": 13,
+      "key": "spinning",
+      "label": "Spinning",
+      "category": "rare",
+      "frames": 6,
+      "frameDurationMs": 105,
+      "gifFile": "gifs/13_spinning.gif",
+      "webpFile": "webp_stickers/13_spinning.webp"
+    },
+    {
+      "row": 14,
+      "key": "dizzy",
+      "label": "Dizzy",
+      "category": "rare",
+      "frames": 4,
+      "frameDurationMs": 145,
+      "gifFile": "gifs/14_dizzy.gif",
+      "webpFile": "webp_stickers/14_dizzy.webp"
+    },
+    {
+      "row": 15,
+      "key": "booping",
+      "label": "Snoot Boop!",
+      "category": "rare",
+      "frames": 4,
+      "frameDurationMs": 170,
+      "gifFile": "gifs/15_booping.gif",
+      "webpFile": "webp_stickers/15_booping.webp"
+    },
+    {
+      "row": 16,
+      "key": "splooting",
+      "label": "Splooting",
+      "category": "rare",
+      "frames": 4,
+      "frameDurationMs": 180,
+      "gifFile": "gifs/16_splooting.gif",
+      "webpFile": "webp_stickers/16_splooting.webp"
+    },
+    {
+      "row": 17,
+      "key": "side_eye",
+      "label": "Judgey Side-Eye",
+      "category": "rare",
+      "frames": 4,
+      "frameDurationMs": 200,
+      "gifFile": "gifs/17_side_eye.gif",
+      "webpFile": "webp_stickers/17_side_eye.webp"
+    },
+    {
+      "row": 18,
+      "key": "blep",
+      "label": "Derpy Blep",
+      "category": "rare",
+      "frames": 4,
+      "frameDurationMs": 210,
+      "gifFile": "gifs/18_blep.gif",
+      "webpFile": "webp_stickers/18_blep.webp"
+    }
+  ]
+}

@@ -1,7 +1,8 @@
 import SwiftUI
+import UIKit
 
 /// Interactive in-app Dynamic Island preview showing 1 dog when solo and BOTH dogs
-/// when connected (including partner messages and rare spontaneous 2-dog interactions!).
+/// when connected (including messages, solo quirks, and all 20 combined 2-dog interactions!).
 struct DynamicIslandPreviewBar: View {
     enum IslandMode: String, CaseIterable {
         case compact = "Compact"
@@ -11,12 +12,37 @@ struct DynamicIslandPreviewBar: View {
 
     let state: PetActivityAttributes.ContentState
     let isLiveOnDeviceIsland: Bool
+    var onBoopMyPet: (() -> Void)? = nil
 
     @State private var mode: IslandMode = .expanded
 
     private var myPet: IslandPetSnapshot { state.displayMyPet }
     private var partnerPet: IslandPetSnapshot? { state.displayPartnerPet }
     private var interaction: RarePetInteraction? { state.activeInteraction }
+
+    private var interactionAccentColor: Color {
+        guard let interaction else { return myPet.themeColor }
+        return interaction.kind.isUltraRareLongSkit
+            ? Color(red: 1.0, green: 0.80, blue: 0.28)
+            : Color.pink
+    }
+
+    private var interactionBadgeTextColor: Color {
+        guard let interaction, interaction.kind.isUltraRareLongSkit else {
+            return Color(red: 1.0, green: 0.76, blue: 0.88)
+        }
+        return Color(red: 1.0, green: 0.88, blue: 0.50)
+    }
+
+    private func shouldFlipPartner(_ action: PetAction) -> Bool {
+        action != .confused && action != .sideEye
+    }
+
+    private func triggerBoopIfAvailable() {
+        guard let onBoopMyPet else { return }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        onBoopMyPet()
+    }
 
     var body: some View {
         VStack(spacing: 10) {
@@ -47,7 +73,7 @@ struct DynamicIslandPreviewBar: View {
                     .fill(
                         LinearGradient(
                             colors: [
-                                (interaction != nil ? Color.pink : myPet.themeColor).opacity(0.22),
+                                interactionAccentColor.opacity(0.22),
                                 (partnerPet?.themeColor ?? myPet.action.accentColor).opacity(0.15),
                                 Color.white.opacity(0.04)
                             ],
@@ -73,6 +99,7 @@ struct DynamicIslandPreviewBar: View {
                 .padding(.vertical, 16)
                 .padding(.horizontal, 14)
             }
+            .contentShape(Rectangle())
             .onTapGesture {
                 withAnimation(.spring(response: 0.36, dampingFraction: 0.78)) {
                     switch mode {
@@ -99,6 +126,9 @@ struct DynamicIslandPreviewBar: View {
                         .offset(x: 4, y: -2)
                 }
             }
+            .onTapGesture {
+                triggerBoopIfAvailable()
+            }
 
             // Simulated TrueDepth camera pill area
             Capsule()
@@ -117,7 +147,7 @@ struct DynamicIslandPreviewBar: View {
                         pet: partner,
                         size: 30,
                         driver: .liveTimeline,
-                        flipHorizontally: partner.action != .runLeft && partner.action != .runRight
+                        flipHorizontally: shouldFlipPartner(partner.action)
                     )
                     if let interaction {
                         Text(interaction.kind.centerIcon)
@@ -138,7 +168,7 @@ struct DynamicIslandPreviewBar: View {
                 .shadow(color: .black.opacity(0.55), radius: 14, x: 0, y: 8)
                 .overlay(
                     Capsule()
-                        .strokeBorder((interaction != nil ? Color.pink : myPet.themeColor).opacity(0.5), lineWidth: 1)
+                        .strokeBorder(interactionAccentColor.opacity(0.5), lineWidth: 1)
                 )
         )
     }
@@ -169,6 +199,9 @@ struct DynamicIslandPreviewBar: View {
                     driver: .widgetStatic
                 )
             }
+            .onTapGesture {
+                triggerBoopIfAvailable()
+            }
         }
         .shadow(color: .black.opacity(0.5), radius: 12, x: 0, y: 6)
     }
@@ -177,68 +210,151 @@ struct DynamicIslandPreviewBar: View {
     private var expandedCapsule: some View {
         if let partner = partnerPet, state.hasTwoDogs {
             VStack(spacing: 10) {
-                HStack(spacing: 10) {
-                    VStack(spacing: 3) {
-                        AnimatedPetSpriteView(
-                            pet: myPet,
-                            size: 56,
-                            driver: .liveTimeline,
-                            showSleepBadge: true
-                        )
-                        Text("\(myPet.name) \(myPet.action.emoji)")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-                    }
-
-                    Spacer(minLength: 4)
-
-                    VStack(spacing: 4) {
-                        if let interaction {
-                            Text("\(interaction.kind.badgeEmoji) \(interaction.kind.title)")
-                                .font(.system(size: 12, weight: .heavy, design: .rounded))
-                                .foregroundStyle(Color(red: 1.0, green: 0.76, blue: 0.88))
-                            Text(interaction.kind.descriptionText(myPetName: myPet.name, partnerPetName: partner.name))
-                                .font(.system(size: 11, weight: .medium, design: .rounded))
-                                .foregroundStyle(.white.opacity(0.85))
-                                .multilineTextAlignment(.center)
-                                .lineLimit(2)
-                        } else if let partnerMsg = state.partnerMessage, !partnerMsg.isEmpty {
-                            Text("💬 \(partner.name)'s message")
-                                .font(.system(size: 10, weight: .heavy, design: .rounded))
-                                .foregroundStyle(partner.themeColor)
-                            Text("“\(partnerMsg)”")
-                                .font(.system(size: 13, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
-                                .multilineTextAlignment(.center)
-                                .lineLimit(2)
-                        } else {
-                            Text("Both Dogs Live 🐾")
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
-                            Text("\(partner.name) \(partner.action.statusPhrase)")
-                                .font(.system(size: 11, weight: .medium, design: .rounded))
-                                .foregroundStyle(.white.opacity(0.72))
-                                .multilineTextAlignment(.center)
-                                .lineLimit(2)
+                if let interaction, state.canRenderCombinedDuoArtwork {
+                    HStack(spacing: 8) {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(myPet.themeColor)
+                                .frame(width: 6, height: 6)
+                            Text(myPet.name)
+                                .font(.system(size: 10.5, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.9))
+                                .lineLimit(1)
                         }
-                    }
-                    .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(.white.opacity(0.10)))
 
-                    Spacer(minLength: 4)
+                        Spacer(minLength: 4)
 
-                    VStack(spacing: 3) {
-                        AnimatedPetSpriteView(
-                            pet: partner,
-                            size: 56,
-                            driver: .liveTimeline,
-                            showSleepBadge: true,
-                            flipHorizontally: partner.action != .runLeft && partner.action != .runRight
-                        )
-                        Text("\(partner.name) \(partner.action.emoji)")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
+                        Text(interaction.effectiveTriggerBadge)
+                            .font(.system(size: 9.5, weight: .heavy, design: .rounded))
+                            .foregroundStyle(interactionBadgeTextColor)
                             .lineLimit(1)
+
+                        Spacer(minLength: 4)
+
+                        HStack(spacing: 4) {
+                            Text(partner.name)
+                                .font(.system(size: 10.5, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.9))
+                                .lineLimit(1)
+                            Circle()
+                                .fill(partner.themeColor)
+                                .frame(width: 6, height: 6)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(.white.opacity(0.10)))
+                    }
+
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(Color.white.opacity(0.06))
+                                .frame(width: 108, height: 78)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .strokeBorder(interactionAccentColor.opacity(0.62), lineWidth: 1.2)
+                                )
+
+                            AnimatedDuoSpriteView(
+                                kind: interaction.kind,
+                                height: 72,
+                                driver: .liveTimeline
+                            )
+                        }
+                        .onTapGesture {
+                            triggerBoopIfAvailable()
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("\(interaction.kind.badgeEmoji) \(interaction.kind.title)")
+                                .font(.system(size: 14, weight: .heavy, design: .rounded))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+
+                            Text(interaction.kind.descriptionText(myPetName: myPet.name, partnerPetName: partner.name))
+                                .font(.system(size: 11.5, weight: .medium, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.86))
+                                .lineLimit(3)
+                        }
+
+                        Spacer(minLength: 0)
+                    }
+                } else {
+                    HStack(spacing: 10) {
+                        VStack(spacing: 3) {
+                            AnimatedPetSpriteView(
+                                pet: myPet,
+                                size: 56,
+                                driver: .liveTimeline,
+                                showSleepBadge: true
+                            )
+                            Text("\(myPet.name) \(myPet.action.emoji)")
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                        }
+                        .onTapGesture {
+                            triggerBoopIfAvailable()
+                        }
+
+                        Spacer(minLength: 4)
+
+                        VStack(spacing: 4) {
+                            if let interaction {
+                                Text(interaction.effectiveTriggerBadge)
+                                    .font(.system(size: 9.5, weight: .heavy, design: .rounded))
+                                    .foregroundStyle(Color(red: 1.0, green: 0.76, blue: 0.88))
+                                    .lineLimit(1)
+                                Text("\(interaction.kind.badgeEmoji) \(interaction.kind.title)")
+                                    .font(.system(size: 12, weight: .heavy, design: .rounded))
+                                    .foregroundStyle(.white)
+                                    .lineLimit(1)
+                                Text(interaction.kind.descriptionText(myPetName: myPet.name, partnerPetName: partner.name))
+                                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                                    .foregroundStyle(.white.opacity(0.85))
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                            } else if let partnerMsg = state.partnerMessage, !partnerMsg.isEmpty {
+                                Text("💬 \(partner.name)'s message")
+                                    .font(.system(size: 10, weight: .heavy, design: .rounded))
+                                    .foregroundStyle(partner.themeColor)
+                                Text("“\(partnerMsg)”")
+                                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.white)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                            } else {
+                                Text("\(myPet.name) & \(partner.name) 🐾")
+                                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.white)
+                                    .lineLimit(1)
+                                Text("\(partner.name) \(partner.action.statusPhrase)")
+                                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                                    .foregroundStyle(.white.opacity(0.72))
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+
+                        Spacer(minLength: 4)
+
+                        VStack(spacing: 3) {
+                            AnimatedPetSpriteView(
+                                pet: partner,
+                                size: 56,
+                                driver: .liveTimeline,
+                                showSleepBadge: true,
+                                flipHorizontally: shouldFlipPartner(partner.action)
+                            )
+                            Text("\(partner.name) \(partner.action.emoji)")
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                        }
                     }
                 }
             }
@@ -250,7 +366,7 @@ struct DynamicIslandPreviewBar: View {
                     .shadow(color: .black.opacity(0.6), radius: 16, x: 0, y: 8)
                     .overlay(
                         RoundedRectangle(cornerRadius: 32, style: .continuous)
-                            .strokeBorder((interaction != nil ? Color.pink : myPet.themeColor).opacity(0.45), lineWidth: 1.2)
+                            .strokeBorder(interactionAccentColor.opacity(0.45), lineWidth: 1.2)
                     )
             )
         } else {
@@ -267,11 +383,21 @@ struct DynamicIslandPreviewBar: View {
                         showSleepBadge: true
                     )
                 }
+                .onTapGesture {
+                    triggerBoopIfAvailable()
+                }
 
                 VStack(alignment: .leading, spacing: 5) {
+                    if let quirk = state.activeSoloQuirk {
+                        Text(quirk.triggerBadge)
+                            .font(.system(size: 9.5, weight: .heavy, design: .rounded))
+                            .foregroundStyle(myPet.action.accentColor)
+                            .lineLimit(1)
+                    }
+
                     HStack {
                         Text("\(myPet.name) \(myPet.action.statusPhrase)")
-                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                            .font(.system(size: 14.5, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                             .lineLimit(1)
 
@@ -289,6 +415,11 @@ struct DynamicIslandPreviewBar: View {
                         Text("“\(myMsg)”")
                             .font(.system(size: 12, weight: .medium, design: .rounded))
                             .foregroundStyle(.white.opacity(0.78))
+                            .lineLimit(1)
+                    } else if onBoopMyPet != nil {
+                        Text("Tap \(myPet.name) to boop snoot • Triple-tap to spin!")
+                            .font(.system(size: 11.5, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.62))
                             .lineLimit(1)
                     } else {
                         Text("Connect two iPhones to bring both dogs onto the Dynamic Island!")

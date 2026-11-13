@@ -29,6 +29,8 @@
 		C2E3EDE222D71C6CFC229C41 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D9A9320A152F13731C1D78D8 /* Assets.xcassets */; };
 		C1C3102421C5389D155CA6E4 /* PetTimerGate-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = CE8240B48D32B41D42A49CC0 /* PetTimerGate-Regular.ttf */; };
 		4DDEC7234A2AD0FA9976AC49 /* PetTimerGate-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = CE8240B48D32B41D42A49CC0 /* PetTimerGate-Regular.ttf */; };
+		61C3102421C5389D155CA6E6 /* PetTimerGate6s-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 6E8240B48D32B41D42A49CC6 /* PetTimerGate6s-Regular.ttf */; };
+		6DDEC7234A2AD0FA9976AC46 /* PetTimerGate6s-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 6E8240B48D32B41D42A49CC6 /* PetTimerGate6s-Regular.ttf */; };
 		101CD7379342363243462915 /* IslandPupApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C74E7ADDC6CD7D9958CD3F5 /* IslandPupApp.swift */; };
 		C325C661AF5B0A29B4FD70E3 /* LiveActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F12B26D7CDBCB4E4BAA40791 /* LiveActivityController.swift */; };
 		38BC6D372DE75ECD1E146C7D /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 559FFF73073594B7925314E8 /* ContentView.swift */; };
@@ -76,6 +78,7 @@
 		4F0C5EAB513535110889F86E /* PetLiveActivityIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PetLiveActivityIntents.swift"; path = "Shared/Intents/PetLiveActivityIntents.swift"; sourceTree = "<group>"; };
 		D9A9320A152F13731C1D78D8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = "Assets.xcassets"; path = "Shared/Assets.xcassets"; sourceTree = "<group>"; };
 		CE8240B48D32B41D42A49CC0 /* PetTimerGate-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = "PetTimerGate-Regular.ttf"; path = "Shared/Resources/PetTimerGate-Regular.ttf"; sourceTree = "<group>"; };
+		6E8240B48D32B41D42A49CC6 /* PetTimerGate6s-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = "PetTimerGate6s-Regular.ttf"; path = "Shared/Resources/PetTimerGate6s-Regular.ttf"; sourceTree = "<group>"; };
 		7C74E7ADDC6CD7D9958CD3F5 /* IslandPupApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "IslandPupApp.swift"; path = "IslandPup/IslandPupApp.swift"; sourceTree = "<group>"; };
 		F12B26D7CDBCB4E4BAA40791 /* LiveActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "LiveActivityController.swift"; path = "IslandPup/Controllers/LiveActivityController.swift"; sourceTree = "<group>"; };
 		559FFF73073594B7925314E8 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ContentView.swift"; path = "IslandPup/Views/ContentView.swift"; sourceTree = "<group>"; };
@@ -134,6 +137,7 @@
 				4F0C5EAB513535110889F86E,
 				D9A9320A152F13731C1D78D8,
 				CE8240B48D32B41D42A49CC0,
+				6E8240B48D32B41D42A49CC6,
 			);
 			name = Shared;
 			sourceTree = "<group>";
@@ -256,6 +260,7 @@
 			files = (
 				7179CE2F08E1B61916801F1E,
 				C1C3102421C5389D155CA6E4,
+				61C3102421C5389D155CA6E6,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -265,6 +270,7 @@
 			files = (
 				C2E3EDE222D71C6CFC229C41,
 				4DDEC7234A2AD0FA9976AC49,
+				6DDEC7234A2AD0FA9976AC46,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -341,7 +347,7 @@
 				);
 				GIT_COMMIT_SHA = local;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.2.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -364,7 +370,7 @@
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GIT_COMMIT_SHA = local;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.2.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;

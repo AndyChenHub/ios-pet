@@ -8,7 +8,7 @@
   <div class="bg-[var(--card)] text-[var(--foreground)] border border-[var(--border)] rounded-xl p-4 shadow-sm">
     <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
       <div>
-        <h2 class="text-[var(--foreground)] font-semibold text-base">Live GPT Pet Sprite Previewer</h2>
+        <h2 class="text-[var(--foreground)] font-semibold text-base">Live GPT Pet Sprite Previewer (Updated v2)</h2>
         <p class="text-[var(--muted-foreground)] text-xs">1536×1872 RGBA · 8×9 Grid · 192×208 px per cell</p>
       </div>
       <div class="flex items-center gap-2">
@@ -36,7 +36,7 @@
       <div class="sm:col-span-7 flex flex-col gap-2">
         <div id="stateGrid" class="grid grid-cols-3 gap-1.5"></div>
         <div id="stateDesc" class="mt-1 text-xs text-[var(--muted-foreground)] bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2">
-          Default resting state when ChatGPT / Codex is idle.
+          Resting loop: gentle breathing, ear perks, blink & happy smile.
         </div>
       </div>
     </div>
@@ -46,14 +46,14 @@
     const SPRITE_SRC = "./spritesheet.png";
     const STATES = [
       { row: 0, key: "idle", label: "1. Idle", frames: 6, desc: "Resting loop: gentle breathing, ear perks, blink & happy smile." },
-      { row: 1, key: "running-right", label: "2. Run Right", frames: 8, desc: "Horizontal movement trotting cheerfully to the right." },
-      { row: 2, key: "running-left", label: "3. Run Left", frames: 8, desc: "Horizontal movement trotting cheerfully to the left." },
-      { row: 3, key: "waving", label: "4. Waving", frames: 4, desc: "Greeting gesture lifting front white paw with a wink." },
+      { row: 1, key: "running-right", label: "2. Run Right", frames: 8, desc: "Agile slender-legged trot moving cheerfully to the right." },
+      { row: 2, key: "running-left", label: "3. Run Left", frames: 8, desc: "Agile slender-legged trot moving cheerfully to the left." },
+      { row: 3, key: "waving", label: "4. Waving", frames: 4, desc: "Greeting gesture lifting one slim white front paw with a wink." },
       { row: 4, key: "jumping", label: "5. Jumping", frames: 5, desc: "Celebratory leap when tasks succeed or on interaction." },
       { row: 5, key: "failed", label: "6. Failed", frames: 8, desc: "Error reaction: startled '!', dizzy swirls, and cute belly sploot." },
-      { row: 6, key: "waiting", label: "7. Waiting", frames: 6, desc: "Crossed front paws (from reference photo!) tilting head with '?'." },
+      { row: 6, key: "waiting", label: "7. Waiting", frames: 6, desc: "Graceful crossed slim front paws (from reference photo!) with '?'." },
       { row: 7, key: "running", label: "8. Working", frames: 6, desc: "Active agent task loop: focused paws typing on a mini laptop." },
-      { row: 8, key: "review", label: "9. Review", frames: 6, desc: "Task complete: wearing round glasses & inspecting with magnifier." }
+      { row: 8, key: "review", label: "9. Review", frames: 6, desc: "Sitting upright (clean 2-front-leg anatomy!) with glasses & magnifier." }
     ];
 
     const canvas = document.getElementById("petCanvas");

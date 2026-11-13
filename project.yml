@@ -8,7 +8,7 @@ options:
 
 settings:
   base:
-    MARKETING_VERSION: "1.1.0"
+    MARKETING_VERSION: "1.2.0"
     CURRENT_PROJECT_VERSION: "1"
     GIT_COMMIT_SHA: "local"
     SWIFT_VERSION: "5.0"
@@ -29,6 +29,8 @@ targets:
         excludes:
           - Resources
       - path: Shared/Resources/PetTimerGate-Regular.ttf
+        buildPhase: resources
+      - path: Shared/Resources/PetTimerGate6s-Regular.ttf
         buildPhase: resources
     info:
       path: IslandPup/Info.plist
@@ -57,6 +59,8 @@ targets:
         excludes:
           - Resources
       - path: Shared/Resources/PetTimerGate-Regular.ttf
+        buildPhase: resources
+      - path: Shared/Resources/PetTimerGate6s-Regular.ttf
         buildPhase: resources
     info:
       path: IslandPupWidget/Info.plist

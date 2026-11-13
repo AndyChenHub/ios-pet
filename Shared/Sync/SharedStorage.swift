@@ -25,11 +25,16 @@ public final class SharedStorage: @unchecked Sendable {
         static let partnerPetData = "islandpup.v3.partnerPetData"
         static let partnerMessage = "islandpup.v3.partnerMessage"
         static let rareInteractionData = "islandpup.v3.rareInteractionData"
+        static let soloQuirkData = "islandpup.v3.soloQuirkData"
         static let lastAppliedRemoteSentAt = "islandpup.v3.lastAppliedRemoteSentAt"
         static let lastNotifiedRemoteSentAt = "islandpup.v3.lastNotifiedRemoteSentAt"
         static let lastRareInteractionAt = "islandpup.v3.lastRareInteractionAt"
+        static let lastUltraRareSkitAt = "islandpup.v3.lastUltraRareSkitAt"
         static let lastRelayEnvelopeTime = "islandpup.v3.lastRelayEnvelopeTime"
+        static let schemaVersion = "islandpup.v3.schemaVersion"
     }
+
+    public static let currentSchemaVersion = 2
 
     private init() {}
 
@@ -67,11 +72,10 @@ public final class SharedStorage: @unchecked Sendable {
 
     public var myAction: PetAction {
         get {
-            guard let raw = defaults.string(forKey: Keys.myAction),
-                  let act = PetAction(rawValue: raw) else {
+            guard let raw = defaults.string(forKey: Keys.myAction) else {
                 return .idle
             }
-            return act
+            return PetAction.decodeResilient(from: raw)
         }
         set { defaults.set(newValue.rawValue, forKey: Keys.myAction) }
     }
@@ -184,6 +188,24 @@ public final class SharedStorage: @unchecked Sendable {
         }
     }
 
+    public var soloQuirk: SoloPetQuirk? {
+        get {
+            guard let data = defaults.data(forKey: Keys.soloQuirkData),
+                  let decoded = try? JSONDecoder().decode(SoloPetQuirk.self, from: data),
+                  decoded.isActive() else {
+                return nil
+            }
+            return decoded
+        }
+        set {
+            if let newValue, newValue.isActive(), let data = try? JSONEncoder().encode(newValue) {
+                defaults.set(data, forKey: Keys.soloQuirkData)
+            } else {
+                defaults.removeObject(forKey: Keys.soloQuirkData)
+            }
+        }
+    }
+
     public var lastAppliedRemoteSentAt: TimeInterval {
         get { defaults.double(forKey: Keys.lastAppliedRemoteSentAt) }
         set { defaults.set(newValue, forKey: Keys.lastAppliedRemoteSentAt) }
@@ -199,9 +221,30 @@ public final class SharedStorage: @unchecked Sendable {
         set { defaults.set(newValue, forKey: Keys.lastRareInteractionAt) }
     }
 
+    public var lastUltraRareSkitAt: TimeInterval {
+        get { defaults.double(forKey: Keys.lastUltraRareSkitAt) }
+        set { defaults.set(newValue, forKey: Keys.lastUltraRareSkitAt) }
+    }
+
     public var lastRelayEnvelopeTime: Int {
         get { defaults.integer(forKey: Keys.lastRelayEnvelopeTime) }
         set { defaults.set(newValue, forKey: Keys.lastRelayEnvelopeTime) }
+    }
+
+    /// Returns `true` once after upgrading from an earlier schema, resetting the relay poll cursor
+    /// (`lastRelayEnvelopeTime = 0`) while keeping notification dedupe timestamps intact so the paired
+    /// room re-hydrates the last 12h cleanly without replaying old push alerts.
+    public func consumeDidUpgradeSchemaIfNeeded() -> Bool {
+        let saved = defaults.integer(forKey: Keys.schemaVersion)
+        guard saved < Self.currentSchemaVersion else { return false }
+        defaults.set(Self.currentSchemaVersion, forKey: Keys.schemaVersion)
+        lastRelayEnvelopeTime = 0
+        stateLock.lock()
+        hasCachedPartnerPet = false
+        cachedPartnerPet = nil
+        cachedAnchorTimestamp = 0
+        stateLock.unlock()
+        return true
     }
 
     public func clearPartnerMetadata() {
@@ -273,9 +316,9 @@ public final class SharedStorage: @unchecked Sendable {
         stateLock.lock()
         defer { stateLock.unlock() }
         if cachedAnchorTimestamp == 0
-            || now < cachedAnchorTimestamp + 2.0
+            || now < cachedAnchorTimestamp + 6.0
             || now - cachedAnchorTimestamp > 21_600 {
-            cachedAnchorTimestamp = floor(now / 2.0) * 2.0 - 60.0
+            cachedAnchorTimestamp = floor(now / 6.0) * 6.0 - 60.0
         }
         return cachedAnchorTimestamp
     }
@@ -286,7 +329,8 @@ public final class SharedStorage: @unchecked Sendable {
         let currentPartner = partnerPet
         let paired = isPaired
         let activeRare = paired && currentPartner != nil ? rareInteraction : nil
-        let effectiveMyAction = activeRare?.kind.myDogAction ?? myAction
+        let activeQuirk = activeRare == nil ? soloQuirk : nil
+        let effectiveMyAction = activeRare?.kind.myDogAction ?? activeQuirk?.action ?? myAction
         var mySnapshot = CustomPetStore.shared.makeSnapshot(for: profile, action: effectiveMyAction)
         mySnapshot.action = myAction
 
@@ -298,6 +342,7 @@ public final class SharedStorage: @unchecked Sendable {
             partnerOwnerName: partnerOwnerName,
             partnerMessage: partnerMessage,
             rareInteraction: activeRare,
+            soloQuirk: activeQuirk,
             anchorTimestamp: stableAnchorTimestamp()
         ).fittingActivityKitBudget()
     }

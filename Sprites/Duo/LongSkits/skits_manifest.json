@@ -1,0 +1,107 @@
+{
+  "stageWidth": 320,
+  "stageHeight": 216,
+  "frameDurationMs": 85,
+  "skits": [
+    {
+      "index": 1,
+      "slug": "01_kibble_heist_chase",
+      "label": "The Great Kibble Heist",
+      "frames": 80,
+      "frameDurationMs": 85,
+      "totalSeconds": 6.8,
+      "gifFile": "gifs/01_kibble_heist_chase.gif",
+      "webpFile": "webp_stickers/01_kibble_heist_chase.webp"
+    },
+    {
+      "index": 2,
+      "slug": "02_annoy_until_bonk",
+      "label": "Pester Until MEGA BONK!",
+      "frames": 78,
+      "frameDurationMs": 85,
+      "totalSeconds": 6.63,
+      "gifFile": "gifs/02_annoy_until_bonk.gif",
+      "webpFile": "webp_stickers/02_annoy_until_bonk.webp"
+    },
+    {
+      "index": 3,
+      "slug": "03_tug_of_war_saga",
+      "label": "Epic Tug-of-War Showdown",
+      "frames": 76,
+      "frameDurationMs": 85,
+      "totalSeconds": 6.46,
+      "gifFile": "gifs/03_tug_of_war_saga.gif",
+      "webpFile": "webp_stickers/03_tug_of_war_saga.webp"
+    },
+    {
+      "index": 4,
+      "slug": "04_zoomie_crash_wipeout",
+      "label": "Double Zoomie Wipeout",
+      "frames": 76,
+      "frameDurationMs": 85,
+      "totalSeconds": 6.46,
+      "gifFile": "gifs/04_zoomie_crash_wipeout.gif",
+      "webpFile": "webp_stickers/04_zoomie_crash_wipeout.webp"
+    },
+    {
+      "index": 5,
+      "slug": "05_detective_whodunnit",
+      "label": "Detective Dog Whodunnit",
+      "frames": 82,
+      "frameDurationMs": 85,
+      "totalSeconds": 6.97,
+      "gifFile": "gifs/05_detective_whodunnit.gif",
+      "webpFile": "webp_stickers/05_detective_whodunnit.webp"
+    },
+    {
+      "index": 6,
+      "slug": "06_blanket_war_burrito",
+      "label": "Blanket War & Burrito",
+      "frames": 78,
+      "frameDurationMs": 85,
+      "totalSeconds": 6.63,
+      "gifFile": "gifs/06_blanket_war_burrito.gif",
+      "webpFile": "webp_stickers/06_blanket_war_burrito.webp"
+    },
+    {
+      "index": 7,
+      "slug": "07_personal_space_head_sit",
+      "label": "Head-Sit Personal Space",
+      "frames": 76,
+      "frameDurationMs": 85,
+      "totalSeconds": 6.46,
+      "gifFile": "gifs/07_personal_space_head_sit.gif",
+      "webpFile": "webp_stickers/07_personal_space_head_sit.webp"
+    },
+    {
+      "index": 8,
+      "slug": "08_wfh_meeting_disaster",
+      "label": "WFH Webcam Photobomb",
+      "frames": 80,
+      "frameDurationMs": 85,
+      "totalSeconds": 6.8,
+      "gifFile": "gifs/08_wfh_meeting_disaster.gif",
+      "webpFile": "webp_stickers/08_wfh_meeting_disaster.webp"
+    },
+    {
+      "index": 9,
+      "slug": "09_bitey_face_to_nap",
+      "label": "Bitey-Face Into Nap Crash",
+      "frames": 78,
+      "frameDurationMs": 85,
+      "totalSeconds": 6.63,
+      "gifFile": "gifs/09_bitey_face_to_nap.gif",
+      "webpFile": "webp_stickers/09_bitey_face_to_nap.webp"
+    },
+    {
+      "index": 10,
+      "slug": "10_sad_to_party_rescue",
+      "label": "Sad Bro -> Surprise Party!",
+      "frames": 80,
+      "frameDurationMs": 85,
+      "totalSeconds": 6.8,
+      "gifFile": "gifs/10_sad_to_party_rescue.gif",
+      "webpFile": "webp_stickers/10_sad_to_party_rescue.webp"
+    }
+  ]
+}

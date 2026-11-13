@@ -1,0 +1,211 @@
+{
+  "pack": "duo_interactions",
+  "atlasWidth": 1152,
+  "atlasHeight": 4160,
+  "cellWidth": 288,
+  "cellHeight": 208,
+  "columns": 4,
+  "rows": 20,
+  "animations": [
+    {
+      "row": 1,
+      "key": "tug_of_war",
+      "label": "Tug-of-War!",
+      "category": "chaos",
+      "frames": 4,
+      "frameDurationMs": 125,
+      "gifFile": "gifs/01_tug_of_war.gif",
+      "webpFile": "webp_stickers/01_tug_of_war.webp"
+    },
+    {
+      "row": 2,
+      "key": "stealing_food",
+      "label": "Kibble Heist",
+      "category": "chaos",
+      "frames": 4,
+      "frameDurationMs": 180,
+      "gifFile": "gifs/02_stealing_food.gif",
+      "webpFile": "webp_stickers/02_stealing_food.webp"
+    },
+    {
+      "row": 3,
+      "key": "zoomie_crash",
+      "label": "Zoomie Crash!",
+      "category": "chaos",
+      "frames": 4,
+      "frameDurationMs": 145,
+      "gifFile": "gifs/03_zoomie_crash.gif",
+      "webpFile": "webp_stickers/03_zoomie_crash.webp"
+    },
+    {
+      "row": 4,
+      "key": "paw_bonk",
+      "label": "Sibling BONK!",
+      "category": "chaos",
+      "frames": 4,
+      "frameDurationMs": 170,
+      "gifFile": "gifs/04_paw_bonk.gif",
+      "webpFile": "webp_stickers/04_paw_bonk.webp"
+    },
+    {
+      "row": 5,
+      "key": "sitting_on_head",
+      "label": "Sitting on Head",
+      "category": "funny",
+      "frames": 4,
+      "frameDurationMs": 185,
+      "gifFile": "gifs/05_sitting_on_head.gif",
+      "webpFile": "webp_stickers/05_sitting_on_head.webp"
+    },
+    {
+      "row": 6,
+      "key": "butt_sniff",
+      "label": "Butt-Sniff Ambush",
+      "category": "funny",
+      "frames": 4,
+      "frameDurationMs": 180,
+      "gifFile": "gifs/06_butt_sniff.gif",
+      "webpFile": "webp_stickers/06_butt_sniff.webp"
+    },
+    {
+      "row": 7,
+      "key": "blanket_hog",
+      "label": "Blanket Hog",
+      "category": "chaos",
+      "frames": 4,
+      "frameDurationMs": 185,
+      "gifFile": "gifs/07_blanket_hog.gif",
+      "webpFile": "webp_stickers/07_blanket_hog.webp"
+    },
+    {
+      "row": 8,
+      "key": "bitey_face",
+      "label": "Bitey-Face!",
+      "category": "chaos",
+      "frames": 4,
+      "frameDurationMs": 125,
+      "gifFile": "gifs/08_bitey_face.gif",
+      "webpFile": "webp_stickers/08_bitey_face.webp"
+    },
+    {
+      "row": 9,
+      "key": "blame_each_other",
+      "label": "He Did It!!",
+      "category": "funny",
+      "frames": 4,
+      "frameDurationMs": 190,
+      "gifFile": "gifs/09_blame_each_other.gif",
+      "webpFile": "webp_stickers/09_blame_each_other.webp"
+    },
+    {
+      "row": 10,
+      "key": "ear_nibble_annoy",
+      "label": "Pester & Ear Nom",
+      "category": "chaos",
+      "frames": 4,
+      "frameDurationMs": 155,
+      "gifFile": "gifs/10_ear_nibble_annoy.gif",
+      "webpFile": "webp_stickers/10_ear_nibble_annoy.webp"
+    },
+    {
+      "row": 11,
+      "key": "bark_argument",
+      "label": "Yap-Off & Hmph!",
+      "category": "chaos",
+      "frames": 4,
+      "frameDurationMs": 150,
+      "gifFile": "gifs/11_bark_argument.gif",
+      "webpFile": "webp_stickers/11_bark_argument.webp"
+    },
+    {
+      "row": 12,
+      "key": "food_envy_beg",
+      "label": "Eating vs Begging",
+      "category": "funny",
+      "frames": 4,
+      "frameDurationMs": 140,
+      "gifFile": "gifs/12_food_envy_beg.gif",
+      "webpFile": "webp_stickers/12_food_envy_beg.webp"
+    },
+    {
+      "row": 13,
+      "key": "zoomie_chase",
+      "label": "Turbo Zoomie Chase",
+      "category": "chaos",
+      "frames": 4,
+      "frameDurationMs": 105,
+      "gifFile": "gifs/13_zoomie_chase.gif",
+      "webpFile": "webp_stickers/13_zoomie_chase.webp"
+    },
+    {
+      "row": 14,
+      "key": "spin_into_dizzy",
+      "label": "Spin Into Dizzy",
+      "category": "chaos",
+      "frames": 4,
+      "frameDurationMs": 140,
+      "gifFile": "gifs/14_spin_into_dizzy.gif",
+      "webpFile": "webp_stickers/14_spin_into_dizzy.webp"
+    },
+    {
+      "row": 15,
+      "key": "interrupt_work",
+      "label": "Interrupting WFH",
+      "category": "funny",
+      "frames": 4,
+      "frameDurationMs": 155,
+      "gifFile": "gifs/15_interrupt_work.gif",
+      "webpFile": "webp_stickers/15_interrupt_work.webp"
+    },
+    {
+      "row": 16,
+      "key": "double_side_eye",
+      "label": "Double Side-Eye",
+      "category": "funny",
+      "frames": 4,
+      "frameDurationMs": 200,
+      "gifFile": "gifs/16_double_side_eye.gif",
+      "webpFile": "webp_stickers/16_double_side_eye.webp"
+    },
+    {
+      "row": 17,
+      "key": "shared_braincell",
+      "label": "One Shared Braincell",
+      "category": "funny",
+      "frames": 4,
+      "frameDurationMs": 200,
+      "gifFile": "gifs/17_shared_braincell.gif",
+      "webpFile": "webp_stickers/17_shared_braincell.webp"
+    },
+    {
+      "row": 18,
+      "key": "double_beg_squad",
+      "label": "Double Beg Squad",
+      "category": "sweet",
+      "frames": 4,
+      "frameDurationMs": 130,
+      "gifFile": "gifs/18_double_beg_squad.gif",
+      "webpFile": "webp_stickers/18_double_beg_squad.webp"
+    },
+    {
+      "row": 19,
+      "key": "cheer_up_love",
+      "label": "Cheer Up Sibling",
+      "category": "sweet",
+      "frames": 4,
+      "frameDurationMs": 165,
+      "gifFile": "gifs/19_cheer_up_love.gif",
+      "webpFile": "webp_stickers/19_cheer_up_love.webp"
+    },
+    {
+      "row": 20,
+      "key": "cozy_nap_truce",
+      "label": "Cozy Nap Truce",
+      "category": "sweet",
+      "frames": 4,
+      "frameDurationMs": 220,
+      "gifFile": "gifs/20_cozy_nap_truce.gif",
+      "webpFile": "webp_stickers/20_cozy_nap_truce.webp"
+    }
+  ]
+}

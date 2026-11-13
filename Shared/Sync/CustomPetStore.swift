@@ -69,7 +69,7 @@ public final class CustomPetStore: @unchecked Sendable {
 
     // MARK: - Roster Persistence
 
-    public func loadRoster() -> [PetProfile] {
+    private func loadAllStoredRoster() -> [PetProfile] {
         lock.lock()
         if let cached = cachedRoster {
             lock.unlock()
@@ -89,6 +89,11 @@ public final class CustomPetStore: @unchecked Sendable {
         let initial = [PetProfile.defaultAlfie, PetProfile.defaultTeddy]
         saveRoster(initial)
         return initial
+    }
+
+    public func loadRoster() -> [PetProfile] {
+        let all = loadAllStoredRoster()
+        return FeatureFlags.enableCustomPetCreation ? all : all.filter { !$0.isCustom }
     }
 
     public func saveRoster(_ roster: [PetProfile]) {
@@ -115,7 +120,7 @@ public final class CustomPetStore: @unchecked Sendable {
 
     @discardableResult
     public func updatePet(id: String, name: String, colorPreset: PetColorPreset? = nil) -> PetProfile? {
-        var roster = loadRoster()
+        var roster = loadAllStoredRoster()
         guard let idx = roster.firstIndex(where: { $0.id == id }) else { return nil }
         let cleanName = SharedStorage.sanitizeDisplayText(name, maxLength: 18)
         if !cleanName.isEmpty {
@@ -129,7 +134,7 @@ public final class CustomPetStore: @unchecked Sendable {
     }
 
     public func deleteCustomPet(id: String) {
-        var roster = loadRoster()
+        var roster = loadAllStoredRoster()
         guard let idx = roster.firstIndex(where: { $0.id == id && $0.isCustom }) else { return }
         let removed = roster.remove(at: idx)
         saveRoster(roster)
@@ -304,15 +309,52 @@ public final class CustomPetStore: @unchecked Sendable {
 
     private static let standard8x9Spec: [(PetAction, Int, [Int])] = [
         (.idle, 0, [0, 1, 2, 3, 4, 5]),
-        (.sleeping, 5, [5, 7, 6, 7]),
+        (.walk, 1, [0, 2, 4, 6]),
+        (.zoomies, 2, [0, 1, 2, 3, 4, 5]),
         (.waving, 3, [0, 1, 2, 3]),
-        (.jumping, 4, [0, 1, 2, 3, 4, 0]),
-        (.runRight, 1, [0, 1, 2, 3, 4, 5, 6, 7]),
-        (.runLeft, 2, [0, 1, 2, 3, 4, 5, 6, 7]),
+        (.happy, 4, [0, 1, 2, 3]),
+        (.celebrate, 4, [0, 1, 2, 3, 4, 0]),
+        (.love, 3, [0, 1, 2, 3]),
+        (.sleeping, 5, [5, 7, 6, 7]),
+        (.dizzy, 5, [0, 1, 2, 3]),
+        (.splooting, 5, [4, 5, 6, 7]),
+        (.sad, 6, [0, 1, 2, 3]),
         (.waiting, 6, [0, 1, 2, 3, 4, 5]),
+        (.confused, 6, [0, 2, 3, 5]),
         (.working, 7, [0, 1, 2, 3, 4, 5]),
         (.review, 8, [0, 1, 2, 3, 4, 5]),
-        (.dizzy, 5, [0, 1, 2, 3, 4, 5, 6, 7])
+        (.eating, 0, [0, 1, 2, 3]),
+        (.grumpy, 8, [0, 1, 2, 3]),
+        (.begging, 6, [0, 1, 2, 3]),
+        (.spinning, 1, [0, 1, 2, 3, 4, 5]),
+        (.booping, 3, [0, 1, 2, 3]),
+        (.sideEye, 8, [2, 3, 4, 5]),
+        (.blep, 0, [2, 3, 4, 5])
+    ]
+
+    private static let extra8x18Spec: [(PetAction, Int, [Int])] = [
+        (.walk, 0, [0, 1, 2, 3]),
+        (.working, 1, [0, 1, 2, 3]),
+        (.sleeping, 2, [0, 1, 2, 3]),
+        (.eating, 3, [0, 1, 2, 3]),
+        (.happy, 4, [0, 1, 2, 3]),
+        (.idle, 4, [0, 1, 2, 3]),
+        (.waving, 4, [0, 1, 2, 3]),
+        (.sad, 5, [0, 1, 2, 3]),
+        (.waiting, 5, [0, 1, 2, 3]),
+        (.love, 6, [0, 1, 2, 3]),
+        (.confused, 7, [0, 1, 2, 3]),
+        (.review, 7, [0, 1, 2, 3]),
+        (.grumpy, 8, [0, 1, 2, 3]),
+        (.celebrate, 9, [0, 1, 2, 3]),
+        (.zoomies, 10, [0, 1, 2, 3, 4, 5]),
+        (.begging, 11, [0, 1, 2, 3]),
+        (.spinning, 12, [0, 1, 2, 3, 4, 5]),
+        (.dizzy, 13, [0, 1, 2, 3]),
+        (.booping, 14, [0, 1, 2, 3]),
+        (.splooting, 15, [0, 1, 2, 3]),
+        (.sideEye, 16, [0, 1, 2, 3]),
+        (.blep, 17, [0, 1, 2, 3])
     ]
 
     private static func sliceAllActions(
@@ -354,7 +396,9 @@ public final class CustomPetStore: @unchecked Sendable {
 
     private static func sliceStandard8x9(cgSheet: CGImage) throws -> [PetAction: [CGImage]] {
         let cols = 8
-        let rows = 9
+        let isTall18Row = Double(cgSheet.height) / Double(max(1, cgSheet.width)) > 1.8
+        let rows = isTall18Row ? 18 : 9
+        let spec = isTall18Row ? extra8x18Spec : standard8x9Spec
         let cellW = cgSheet.width / cols
         let cellH = cgSheet.height / rows
         guard cellW >= 8, cellH >= 8 else {
@@ -364,7 +408,7 @@ public final class CustomPetStore: @unchecked Sendable {
         var result: [PetAction: [CGImage]] = [:]
         var fallbackCells: [CGImage] = []
 
-        for (action, row, colIndices) in standard8x9Spec {
+        for (action, row, colIndices) in spec {
             var rawCells: [CGImage] = []
             for col in colIndices where col < cols && row < rows {
                 let rect = CGRect(x: col * cellW, y: row * cellH, width: cellW, height: cellH)

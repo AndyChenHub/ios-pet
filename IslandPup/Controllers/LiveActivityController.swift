@@ -39,7 +39,7 @@ final class LiveActivityController: ObservableObject {
 
         do {
             let safeState = state.fittingActivityKitBudget()
-            let staleDate = safeState.activeInteraction.map { Date(timeIntervalSince1970: $0.expiresAt) }
+            let staleDate = safeState.nextExpiryDate
             let attributes = PetActivityAttributes()
             let content = ActivityContent(state: safeState, staleDate: staleDate)
             _ = try Activity.request(

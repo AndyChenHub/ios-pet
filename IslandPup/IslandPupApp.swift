@@ -22,15 +22,12 @@ struct IslandPupApp: App {
                 islandController: islandController
             )
         }
-        .onChange(of: scenePhase) { _, newPhase in
+        .onChange(of: scenePhase, initial: true) { _, newPhase in
             switch newPhase {
             case .active:
                 islandController.refreshActiveStatus()
-                if SharedStorage.shared.isPaired {
-                    syncService.startRealtimeListeners()
-                    Task {
-                        await syncService.pollLatestMessages()
-                    }
+                Task {
+                    await syncService.handleAppBecameActive()
                 }
 
             case .background:
